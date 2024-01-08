@@ -43,7 +43,7 @@ def define_roi(frame, left_lane_endpoints, right_lane_endpoints):
    
     # mask for ROI
     roi_mask = np.zeros_like(frame)
-    cv2.fillPoly(roi_mask, [roi_points], (0, 0, 255))  # Set the color to red (BGR format)
+    cv2.fillPoly(roi_mask, [roi_points], (200, 0, 119))  # Set the color to red (BGR format)
    
     # combine frame with ROI mask
     frame_with_roi = cv2.bitwise_or(frame, roi_mask)
@@ -96,8 +96,8 @@ def detect_lanes(frame, low_threshold, high_threshold, prev_left_lane_endpoints,
 
     if roi is None:
         height, width = edges.shape
-        trapezoid_vertices = np.array([[(width * 0, height), (width * 0.2, height * 0.6),
-                                        (width * 0.8, height * 0.6), (width, height)]], dtype=np.int32)
+        trapezoid_vertices = np.array([[(width * 0 - 100, height), (width * 0.2, height * 0.6),
+                                        (width * 0.8, height * 0.6), (width + 100, height)]], dtype=np.int32)
         mask = np.zeros_like(edges)
         cv2.fillPoly(mask, [trapezoid_vertices], 255)
         roi = mask
@@ -217,10 +217,67 @@ def detect_lanes(frame, low_threshold, high_threshold, prev_left_lane_endpoints,
     print("left int:", left_intersection)
     right_intersection = find_intersection_point(right_lane_endpoints, horizon_endpoints)
     print("right int:", right_intersection)
-    draw_endpoints(optional_frame, [left_intersection, right_intersection], color=(255, 255, 255))
+    draw_endpoints(optional_frame, [left_intersection, right_intersection], color=(0, 255, 0))
 
-    draw_endpoints(optional_frame, [(200, 864),(420, 864), (1580, 864), (1800, 864)])
+    th1 = [(200, 864),(420, 864), (1520, 864), (1720, 864)]
+    th2 =  [(100, 864),(520, 864), (1420, 864), (1820, 864)]
+    th3 =  [(0, 864),(620, 864), (1320, 864), (1920, 864)]
 
+    draw_endpoints(optional_frame, th1, color=(0, 255, 255))
+    draw_endpoints(optional_frame, th2, color=(0, 165, 255))
+    draw_endpoints(optional_frame, th3, color=(0, 0, 255))
+    
+    x_left_int = None
+    x_right_int = None
+    # steering adjustment
+    if left_intersection:
+        x_left_int = left_intersection[0]
+    if right_intersection:
+        x_right_int = right_intersection[0]
+
+    message = ''
+    
+    if x_left_int and x_right_int:
+        if (x_left_int >= th1[0][0] and x_left_int <= th1[1][0]) and (x_right_int >= th1[2][0] and x_right_int <= th1[3][0]):
+            message = 'go'
+        elif (x_left_int >= th2[0][0] and x_left_int <= th1[0][0]) and (x_right_int >= th2[2][0] and x_right_int <= th1[2][0]):
+            message = 'slight left'
+        elif (x_left_int >= th1[1][0] and x_left_int <= th2[1][0]) and (x_right_int >= th1[3][0] and x_right_int <= th2[3][0]):
+            message = 'slight right'
+        elif (x_left_int >= th3[0][0] and x_left_int <= th2[0][0]) and (x_right_int >= th3[2][0] and x_right_int <= th2[2][0]):
+            message = 'hard left'
+        elif (x_left_int >= th2[1][0] and x_left_int <= th3[1][0]) and (x_right_int >= th2[3][0] and x_right_int <= th3[3][0]):
+            message = 'hard right'
+    elif x_left_int:
+        if (x_left_int >= th1[0][0] and x_left_int <= th1[1][0]):
+            message = 'go'
+        elif (x_left_int >= th2[0][0] and x_left_int <= th1[0][0]):
+            message = 'slight left'
+        elif (x_left_int >= th1[1][0] and x_left_int <= th2[1][0]):
+            message = 'slight right'
+        elif (x_left_int >= th3[0][0] and x_left_int <= th2[0][0]):
+            message = 'hard left'
+        elif (x_left_int >= th2[1][0] and x_left_int <= th3[1][0]):
+            message = 'hard right'
+    elif x_right_int:
+        if (x_right_int >= th1[2][0] and x_right_int <= th1[3][0]):
+            message = 'go'
+        elif (x_right_int >= th2[2][0] and x_right_int <= th1[2][0]):
+            message = 'slight left'
+        elif (x_right_int >= th1[3][0] and x_right_int <= th2[3][0]):
+            message = 'slight right'
+        elif (x_right_int >= th3[2][0] and x_right_int <= th2[2][0]):
+            message = 'hard left'
+        elif (x_right_int >= th1[3][0] and x_right_int <= th2[3][0]):
+            message = 'hard right'
+    
+    position = (50, 100)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_size = 3
+    font_thickness = 10
+    text_color = (0, 255, 0)
+    cv2.putText(optional_frame, message, position, font, font_size, text_color, font_thickness)
+ 
     # Resize frames
     target_height = 300
     scale_factor = target_height / frame.shape[0]
@@ -240,7 +297,7 @@ def detect_lanes(frame, low_threshold, high_threshold, prev_left_lane_endpoints,
     optional = resized_optional_frame
 
     # window with combined frames
-    combined_frames = np.hstack([original_frame, canny_edges_frame, hough_lines_frame, optional, horizontal_lines_frame])
+    combined_frames = np.hstack([original_frame, canny_edges_frame, hough_lines_frame, optional])
 
     cv2.imshow('Lane Detection', combined_frames)
     # print("left:", left_lane_endpoints)
