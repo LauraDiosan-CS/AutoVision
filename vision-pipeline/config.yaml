@@ -1,0 +1,4 @@
+yolo_signs: 'C:\Users\Rotaru Mira\Desktop\CarVision\laneDetect\models\best_v2.pt'
+video: 'signs.MP4'
+video_dir: 'C:\Users\Rotaru Mira\Desktop\CarVision\laneDetect\videos'
+results_dir: 'C:\Users\Rotaru Mira\Desktop\CarVision\laneDetect\results'
