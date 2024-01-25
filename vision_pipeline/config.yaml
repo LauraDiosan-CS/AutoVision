@@ -1,0 +1,4 @@
+yolo_signs: 'laneDetect\models\best_v2.pt'
+video: 'signs.MP4'
+video_dir: 'laneDetect\videos'
+results_dir: 'laneDetect\results'
