@@ -1,69 +1,75 @@
 import argparse
+from copy import deepcopy
 
 import numpy as np
 import yaml
 import os
 import cv2
+import matplotlib.pyplot as plt
+from video_info import VideoInfo
+from vision_pipeline.filters.draw_filter import DrawFilter
 
 from vision_pipeline.pipeline import Pipeline
-
-
-def stackImages(scale, imgArray):
-    rows = len(imgArray)
-    cols = len(imgArray[0])
-    rowsAvailable = isinstance(imgArray[0], list)
-    width = imgArray[0][0].shape[1]
-    height = imgArray[0][0].shape[0]
-    if rowsAvailable:
-        for x in range(0, rows):
-            for y in range(0, cols):
-                if imgArray[x][y].shape[:2] == imgArray[0][0].shape[:2]:
-                    imgArray[x][y] = cv2.resize(imgArray[x][y], (0, 0), None, scale, scale)
-                else:
-                    imgArray[x][y] = cv2.resize(imgArray[x][y], (imgArray[0][0].shape[1], imgArray[0][0].shape[0]),
-                                                None, scale, scale)
-                if len(imgArray[x][y].shape) == 2: imgArray[x][y] = cv2.cvtColor(imgArray[x][y], cv2.COLOR_GRAY2BGR)
-        imageBlank = np.zeros((height, width, 3), np.uint8)
-        hor = [imageBlank] * rows
-        for x in range(0, rows):
-            hor[x] = np.hstack(imgArray[x])
-        ver = np.vstack(hor)
-    else:
-        for x in range(0, rows):
-            if imgArray[x].shape[:2] == imgArray[0].shape[:2]:
-                imgArray[x] = cv2.resize(imgArray[x], (0, 0), None, scale, scale)
-            else:
-                imgArray[x] = cv2.resize(imgArray[x], (imgArray[0].shape[1], imgArray[0].shape[0]), None, scale, scale)
-            if len(imgArray[x].shape) == 2: imgArray[x] = cv2.cvtColor(imgArray[x], cv2.COLOR_GRAY2BGR)
-        hor = np.hstack(imgArray)
-        ver = hor
-    return ver
-
+from helpers import get_roi_bbox_for_video, stack_images
 
 def main(args):
-    pipeline = Pipeline(args)
+    video_path = os.path.join(args.video_dir, args.video)
+    cap = cv2.VideoCapture(video_path)
 
-    video = os.path.join(args.video_dir, args.video)
-    cap = cv2.VideoCapture(video)
+    video_roi_bbox = get_roi_bbox_for_video(args.video)
 
-    print(video)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    video_info = VideoInfo(video_name=args.video,video_roi_bbox=video_roi_bbox, height=height, width=width)
+
+    pipeline = Pipeline(args, video_info)
+
+
+    print(video_path)
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
+    speed = 1
+
     while cap.isOpened():
-        ret, frame = cap.read()
+        if speed < 1:
+            speed = 1
+
+        for i in range(speed):
+            ret, frame = cap.read()
 
         if ret:
+            frame_copy = deepcopy(frame)
 
-            processed_frames = pipeline.run_seq(frame)
+            processed_frames, steering_angle, road_markings = pipeline.run_seq(frame)
+
+            draw_filter = DrawFilter(video_info=video_info)
+
+            drawn_frame = draw_filter.process(frame_copy, road_markings, steering_angle)
+            
+            # processed_frames.append(drawn_frame)
+            processed_frames = None
 
             if processed_frames is not None:
-                imgStack = stackImages(0.5, processed_frames)
+                imgStack = stack_images(0.5, processed_frames)
                 cv2.imshow('CarVision', imgStack)
             else:
-                cv2.imshow('CarVision', frame)
+                cv2.imshow('CarVision', drawn_frame)
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+
+            key = cv2.waitKey(5)
+            # Press Q on keyboard to exit
+            if key & 0xFF == ord('q'):
                 break
+            elif key & 0xFF == ord('w'):
+                speed += 1
+            elif key & 0xFF == ord('e'):
+                speed -= 1
+            elif key & 0xFF == ord('x'):
+                cv2.polylines(frame, np.array([video_roi_bbox]), True, (0, 255, 0), 2)
+                imgArr = np.asarray(frame.copy())
+                plt.imshow(imgArr)
+                plt.show()
+                cv2.waitKey(0)
         else:
             break
 
