@@ -1,6 +1,5 @@
 import argparse
 from copy import deepcopy
-
 import numpy as np
 import yaml
 import os
@@ -46,8 +45,8 @@ def main(args):
 
             drawn_frame = draw_filter.process(frame_copy, road_markings, steering_angle)
             
-            # processed_frames.append(drawn_frame)
-            processed_frames = None
+            processed_frames.append(drawn_frame)
+            #processed_frames = None
 
             if processed_frames is not None:
                 imgStack = stack_images(0.5, processed_frames)

@@ -9,7 +9,7 @@ class ROIFilter(BaseFilter):
 
     @staticmethod
     def define_roi(image, roi_bbox):
-        poly = np.array([roi_bbox])
+        poly= np.array([roi_bbox])
         mask = np.zeros_like(image)
         cv2.fillPoly(mask, poly, (255, 255, 255))
 

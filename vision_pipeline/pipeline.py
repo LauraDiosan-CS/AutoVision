@@ -1,5 +1,4 @@
 from copy import deepcopy
-from tracemalloc import BaseFilter
 from video_info import VideoInfo
 from vision_pipeline.filters.basic_filters.blur_filter import BlurFilter
 from vision_pipeline.filters.basic_filters.cannyedge_filter import CannyEdgeFilter
@@ -26,8 +25,7 @@ class Pipeline:
         self.lane_detection_filter = LaneDetectFilter(video_info=video_info)
         self.steer_filter = Steer(video_info=video_info)
         self.sign_detection_filter = SignsDetect(videoInfo=video_info,model=self.signs_model)
-        self.lane_detection_configuration: list[BaseFilter] = [self.roi_filter, self.grayscale_filter, 
-                                                               self.canny_edge_filter, self.lane_detection_filter, self.steer_filter]
+        self.lane_detection_configuration: list[BaseFilter] = [self.grayscale_filter, self.roi_filter, self.canny_edge_filter,self.lane_detection_filter, self.steer_filter]
         self.sign_detection_configuration: list[BaseFilter] = [self.sign_detection_filter]
         self.parallel_configurations: list[list[BaseFilter]] = [self.sign_detection_configuration, self.lane_detection_configuration]
 

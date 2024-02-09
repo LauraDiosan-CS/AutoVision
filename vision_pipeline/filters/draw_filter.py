@@ -24,7 +24,7 @@ class DrawFilter(BaseFilter):
         self.draw_correct_path(frame=frame)
         self.draw_actual_path(frame=frame)
         self.draw_car_position(frame)
-
+        self.draw_lane_endpoints(frame)
         return frame
 
     def put_text_steering_angle(self, frame, steering_angle):
@@ -40,13 +40,6 @@ class DrawFilter(BaseFilter):
                 (self.right_line.upper_x, self.right_line.upper_y)],
                 dtype=np.int32)
             
-            self.draw_points(frame, [(self.center_line.upper_x, self.center_line.upper_y)], color = (255, 0, 0))
-            self.draw_points(frame, [(self.center_line.upper_x, self.center_line.upper_y)], color = (0, 255, 0))
-            self.draw_points(frame, [(self.center_line.upper_x, self.center_line.upper_y)], color = (0, 0, 255))
-            self.draw_points(frame, [(self.center_line.upper_x, self.center_line.upper_y)], color = (0, 0, 0))
-            
-            
-
             # mask for ROI
             roi_mask = np.zeros_like(frame)
             cv2.fillPoly(roi_mask, [roi_points], (0, 204, 119))
@@ -56,7 +49,10 @@ class DrawFilter(BaseFilter):
             cv2.addWeighted(frame, 1, roi_mask, alpha, 0, frame)
 
     def draw_lane_endpoints(self, frame):
-        self.draw_points(frame, [self.center_lane[0], self.right_lane[0]], radius=20)
+        print('center line:', type(int(self.center_line[0])))
+        print('right line:', type(int(self.right_line[0])))
+        self.draw_points(frame, [(int(self.center_line[0]), int(self.center_line[1]))],color=(255,0,0), radius=10)
+        self.draw_points(frame, [(int(self.right_line[0]), int(self.right_line[1]))], color=(0, 255, 0), radius = 10)
 
     def draw_correct_path(self, frame):
         if self.center_line and self.right_line:
@@ -69,7 +65,7 @@ class DrawFilter(BaseFilter):
             if self.car_position and self.upper_lane_center:
                 print('actual:', self.car_position, self.upper_lane_center)
                 car_path_upper_limit = (self.car_position[0], self.upper_lane_center[1])
-                cv2.line(frame, self.car_position, car_path_upper_limit, color=(255, 255, 255), thickness=3)
+                cv2.line(frame, self.car_position, car_path_upper_limit, color=(2, 135, 247), thickness=3)
 
     def draw_lanes(self, frame):
         if self.center_line and self.right_line:
@@ -78,13 +74,13 @@ class DrawFilter(BaseFilter):
             cv2.line(frame, (self.right_line.upper_x, self.right_line.upper_y), 
                 (self.right_line.lower_x, self.right_line.lower_y), color=(0, 255, 0), thickness=5)
 
-    def draw_points(self,frame, endpoints, color=(0, 255, 0), radius=10):
+    def draw_points(self, frame, endpoints, color=(255, 0, 0), radius=10):
         if endpoints:
             for point in endpoints:
                 cv2.circle(frame, point, radius, color, thickness=-1)
 
     def draw_car_position(self, frame):
-        self.draw_points(frame,[self.car_position], radius=20)
+        self.draw_points(frame,[self.car_position], color=(2, 135, 247),radius=20)
 
     def draw_lane_center(self, frame):
         self.draw_points(frame,[self.upper_lane_center], radius=10)

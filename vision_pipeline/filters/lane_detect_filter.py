@@ -16,6 +16,7 @@ class LaneDetectFilter(BaseFilter):
 
     def process(self, frame) -> RoadMarkings:
         hough_lines = self.apply_houghLines(frame)
+        self.remove_roi_lines(hough_lines)
 
         # lane detection
         self.detect_max_lanes(hough_lines)
@@ -40,6 +41,18 @@ class LaneDetectFilter(BaseFilter):
 
     # -----------------------------------------------
     # Processing Methods  
+
+    def remove_roi_lines(self, hough_lines):
+        # roi endpoints order: BL, TL, TR, BR
+        roi = self.video_info.video_roi_bbox
+        roi_left_limit = []
+        roi_left_limit = [[roi[1][0], roi[1][1], roi[0][0], roi[0][1]]]
+        roi_right_limit = np.array([[roi[2][0], roi[2][1], roi[3][0], roi[3][1]]])
+
+        idx = np.where(hough_lines == roi_left_limit)
+        print('before:', hough_lines.shape, idx)
+        hough_lines = hough_lines[~np.all(hough_lines == roi_left_limit, axis=(1,2))]
+        print('after:', hough_lines.shape)
 
     @staticmethod  
     def apply_houghLines(frame, rho=1, theta=np.pi / 180, threshold=50, min_line_length=100, max_line_gap=550):
