@@ -1,43 +1,44 @@
 import numpy as np
 import math
+from objects.pipe_data import PipeData
+from objects.road_info import RoadMarkings, Line, Point
+from objects.video_info import VideoInfo
 import cv2
-from road_info import Line, RoadMarkings
-from video_info import VideoInfo
 from vision_pipeline.filters.base_filter import BaseFilter
 from helpers import calculate_angle_with_Ox
 
-class LaneDetectFilter(BaseFilter):
 
+class LaneDetectFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo):
-        super().__init__(video_info=video_info, return_type="RoadMarkings")
+        super().__init__(video_info=video_info)
         self.center_line = []
         self.right_line = []
-        self.lane_center = None
 
-    def process(self, frame) -> RoadMarkings:
-        hough_lines = self.apply_houghLines(frame)
-        self.remove_roi_lines(hough_lines)
+    def process(self, data: PipeData) -> PipeData:
+        hough_lines = self.apply_houghLines(data.frame)
+        if hough_lines is not None:
+            # hough_lines = self.remove_roi_lines(hough_lines)
 
-        # lane detection
-        self.detect_max_lanes(hough_lines)
-        self.extend_lanes()
+            # lane detection
+            self.detect_max_lanes(hough_lines)
+            self.extend_lanes()
+            print('center:', self.center_line, 'right:', self.right_line)
+            if (self.center_line and self.right_line) and (len(self.center_line) == 2 and len(self.right_line) == 2):
+                data.road_markings = RoadMarkings(left_line=None,
+                                                  center_line=Line(
+                                                      upper_point=Point(x=self.center_line[0][0],
+                                                                        y=self.center_line[0][1]),
+                                                      lower_point=Point(x=self.center_line[1][0],
+                                                                        y=self.center_line[1][1])
+                                                  ),
+                                                  right_line=Line(
+                                                      upper_point=Point(x=self.right_line[0][0],
+                                                                        y=self.right_line[0][1]),
+                                                      lower_point=Point(x=self.right_line[1][0],
+                                                                        y=self.right_line[1][1])
+                                                  ))
 
-        road_markings: RoadMarkings = RoadMarkings(left_line=None, 
-                                                   center_line=Line(
-                                                       upper_x=self.center_line[0][0],
-                                                       upper_y=self.center_line[0][1],
-                                                       lower_x=self.center_line[1][0],
-                                                       lower_y=self.center_line[1][1],
-                                                    ),
-                                                    right_line=Line(
-                                                       upper_x=self.right_line[0][0],
-                                                       upper_y=self.right_line[0][1],
-                                                       lower_x=self.right_line[1][0],
-                                                       lower_y=self.right_line[1][1],
-                                                    ))
-
-        # send results
-        return road_markings
+        return data
 
     # -----------------------------------------------
     # Processing Methods  
@@ -50,16 +51,13 @@ class LaneDetectFilter(BaseFilter):
         roi_right_limit = np.array([[roi[2][0], roi[2][1], roi[3][0], roi[3][1]]])
 
         idx = np.where(hough_lines == roi_left_limit)
-        print('before:', hough_lines.shape, idx)
-        hough_lines = hough_lines[~np.all(hough_lines == roi_left_limit, axis=(1,2))]
-        print('after:', hough_lines.shape)
+        return hough_lines[~np.all(hough_lines == roi_left_limit, axis=(1, 2))]
 
-    @staticmethod  
+    @staticmethod
     def apply_houghLines(frame, rho=1, theta=np.pi / 180, threshold=50, min_line_length=100, max_line_gap=550):
         return cv2.HoughLinesP(frame, rho, theta, threshold, np.array([]), minLineLength=min_line_length,
                                maxLineGap=max_line_gap)
-    
-    
+
     def max_lane_lengths(self, hough_lines):
         max_left_lane = 0
         max_right_lane = 0
@@ -73,7 +71,7 @@ class LaneDetectFilter(BaseFilter):
                         if abs(y1 - y2) > max_right_lane:
                             max_right_lane = abs(y1 - y2)
         return max_left_lane, max_right_lane
-    
+
     def detect_max_lanes(self, hough_lines):
         max_left_lane, max_right_lane = self.max_lane_lengths(hough_lines)
         # resetting lanes
@@ -112,9 +110,10 @@ class LaneDetectFilter(BaseFilter):
 
         if self.center_line and self.right_line:
             # 1. extending both lanes downuntil the bottom of frame
-            left_slope = (self.center_line[1][1] - self.center_line[0][1]) / (self.center_line[1][0] - self.center_line[0][0])
+            left_slope = (self.center_line[1][1] - self.center_line[0][1]) / (
+                    self.center_line[1][0] - self.center_line[0][0])
             right_slope = (self.right_line[1][1] - self.right_line[0][1]) / (
-                        self.right_line[1][0] - self.right_line[0][0])
+                    self.right_line[1][0] - self.right_line[0][0])
 
             y_intercept_left = self.center_line[0][1] - left_slope * self.center_line[0][0]
             y_intercept_right = self.right_line[0][1] - right_slope * self.right_line[0][0]
@@ -161,7 +160,6 @@ class LaneDetectFilter(BaseFilter):
 
         self.center_line = ext_upper_left
         self.right_line = ext_upper_right
-
 
     def lane_distance(self, lane_endpoints):
         x1 = lane_endpoints[0][0]

@@ -1,13 +1,18 @@
+from copy import deepcopy
+
+from objects.pipe_data import PipeData
+from objects.video_info import VideoInfo
 from vision_pipeline.filters.base_filter import BaseFilter
-from video_info import VideoInfo
 import cv2
 
+
 class CannyEdgeFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo, low_threshold=150, high_threshold=250):
-        super().__init__(video_info=video_info, return_type="img")
+    def __init__(self, video_info: VideoInfo, low_threshold=50, high_threshold=50):
+        super().__init__(video_info=video_info)
         self.low_threshold = low_threshold
         self.high_threshold = high_threshold
 
-    def process(self, frame):
-        edges_frame = cv2.Canny(frame, self.low_threshold, self.high_threshold)
-        return edges_frame
+    def process(self, data: PipeData) -> PipeData:
+        data.frame = cv2.Canny(data.frame, self.low_threshold, self.high_threshold)
+        data.processed_frames.append(deepcopy(data.frame))
+        return data

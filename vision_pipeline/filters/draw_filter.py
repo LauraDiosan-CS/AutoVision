@@ -1,86 +1,95 @@
+from copy import deepcopy
+
+from objects.pipe_data import PipeData
+from objects.road_info import Line
+from objects.video_info import VideoInfo
 from vision_pipeline.filters.base_filter import BaseFilter
-from video_info import VideoInfo
 import cv2
 import numpy as np
 
+
 class DrawFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo ):
-        super().__init__(video_info=video_info, return_type="img")
+    def __init__(self, video_info: VideoInfo):
+        super().__init__(video_info=video_info)
         self.car_position = (int(self.width / 2), self.height)
         self.center_line = None
         self.right_line = None
 
-    def process(self, frame, road_markings, steering_angle):
-        self.center_line = road_markings.center_line
-        self.right_line = road_markings.right_line
+    def process(self, data: PipeData) -> PipeData:
+        if data.unfiltered_frame is None:
+            return data
+        frame = data.unfiltered_frame
 
-        lane_center_x = int((self.center_line.upper_x + self.right_line.upper_x) / 2)
-        lane_center_y = int((self.center_line.upper_y + self.right_line.upper_y) / 2)
-        self.upper_lane_center = (lane_center_x, lane_center_y)
+        self.draw_car_position(frame, self.car_position)
 
-        self.draw_lanes(frame)
-        self.define_lane_area(frame)
-        self.put_text_steering_angle(frame, steering_angle)
-        self.draw_correct_path(frame=frame)
-        self.draw_actual_path(frame=frame)
-        self.draw_car_position(frame)
-        self.draw_lane_endpoints(frame)
-        return frame
+        if data.road_markings is not None:
+            center_line = data.road_markings.center_line
+            right_line = data.road_markings.right_line
 
-    def put_text_steering_angle(self, frame, steering_angle):
-        cv2.putText(frame, f'Steering angle: {steering_angle:.2f}', (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                    (0, 255, 255), 6)
+            upper_lane_center = ((center_line.upper_point.x + right_line.upper_point.x) // 2,
+                                 (center_line.upper_point.y + right_line.upper_point.y) // 2)
 
-    def define_lane_area(self, frame):
-        if self.center_line and self.right_line:
-            roi_points = np.array([
-                (self.center_line.upper_x, self.center_line.upper_y), 
-                (self.center_line.lower_x, self.center_line.lower_y),
-                (self.right_line.lower_x, self.right_line.lower_y),
-                (self.right_line.upper_x, self.right_line.upper_y)],
-                dtype=np.int32)
-            
-            # mask for ROI
-            roi_mask = np.zeros_like(frame)
-            cv2.fillPoly(roi_mask, [roi_points], (0, 204, 119))
+            self.draw_lane_endpoints(frame, center_line, right_line)
+            self.draw_lanes(frame, center_line, right_line)
+            self.define_lane_area(frame, center_line, right_line)
 
-            # combine frame with roi masking, adding a transparency factor
-            alpha = 0.2
-            cv2.addWeighted(frame, 1, roi_mask, alpha, 0, frame)
+            self.draw_correct_path(frame, self.car_position, upper_lane_center)
+            self.draw_actual_path(frame, self.car_position, upper_lane_center)
 
-    def draw_lane_endpoints(self, frame):
-        print('center line:', type(int(self.center_line[0])))
-        print('right line:', type(int(self.right_line[0])))
-        self.draw_points(frame, [(int(self.center_line[0]), int(self.center_line[1]))],color=(255,0,0), radius=10)
-        self.draw_points(frame, [(int(self.right_line[0]), int(self.right_line[1]))], color=(0, 255, 0), radius = 10)
+            if data.steering_angle is not None:
+                self.put_text(frame, f'Steering angle: {data.steering_angle:.2f}')
+        else:
+            self.put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
 
-    def draw_correct_path(self, frame):
-        if self.center_line and self.right_line:
-            if self.car_position and self.upper_lane_center:
-                print('correct:', self.car_position, self.upper_lane_center)
-                cv2.line(frame, self.car_position, self.upper_lane_center, color=(0, 255, 0), thickness=3)
+        data.frame = frame
+        data.processed_frames.append(deepcopy(data.frame))
+        return data
 
-    def draw_actual_path(self, frame):
-        if self.center_line and self.right_line:
-            if self.car_position and self.upper_lane_center:
-                print('actual:', self.car_position, self.upper_lane_center)
-                car_path_upper_limit = (self.car_position[0], self.upper_lane_center[1])
-                cv2.line(frame, self.car_position, car_path_upper_limit, color=(2, 135, 247), thickness=3)
+    @staticmethod
+    def put_text(frame, text, position=(0, 100), font=cv2.FONT_HERSHEY_SIMPLEX,
+                 font_scale=0.5, color=(0, 255, 255), thickness=2):
+        cv2.putText(frame, text, position, font, font_scale, color, thickness)
 
-    def draw_lanes(self, frame):
-        if self.center_line and self.right_line:
-            cv2.line(frame, (self.center_line.upper_x, self.center_line.upper_y), 
-                (self.center_line.lower_x, self.center_line.lower_y),  color=(0, 255, 0), thickness=5)
-            cv2.line(frame, (self.right_line.upper_x, self.right_line.upper_y), 
-                (self.right_line.lower_x, self.right_line.lower_y), color=(0, 255, 0), thickness=5)
+    @staticmethod
+    def define_lane_area(frame, center_line: Line, right_line: Line, alpha=0.2, mask_color=(0, 204, 119)):
+        lane_roi_points = np.array([
+            center_line.upper_point,
+            center_line.lower_point,
+            right_line.lower_point,
+            right_line.upper_point],
+            dtype=np.int32)
 
-    def draw_points(self, frame, endpoints, color=(255, 0, 0), radius=10):
-        if endpoints:
-            for point in endpoints:
-                cv2.circle(frame, point, radius, color, thickness=-1)
+        lane_roi_mask = np.zeros_like(frame)
+        cv2.fillPoly(lane_roi_mask, [lane_roi_points], mask_color)
 
-    def draw_car_position(self, frame):
-        self.draw_points(frame,[self.car_position], color=(2, 135, 247),radius=20)
+        cv2.addWeighted(frame, 1, lane_roi_mask, alpha, 0, frame)
 
-    def draw_lane_center(self, frame):
-        self.draw_points(frame,[self.upper_lane_center], radius=10)
+    @staticmethod
+    def draw_lane_endpoints(frame, center_line: Line, right_line: Line, color_center=(255, 0, 0),
+                            color_right=(0, 255, 0),
+                            radius=10):
+        DrawFilter.draw_points(frame, [center_line.upper_point], color=color_center, radius=radius)
+        DrawFilter.draw_points(frame, [right_line.upper_point], color=color_right, radius=radius)
+
+    @staticmethod
+    def draw_correct_path(frame, car_position, upper_lane_center, color=(0, 255, 0), thickness=3):
+        cv2.line(frame, car_position, upper_lane_center, color=color, thickness=thickness)
+
+    @staticmethod
+    def draw_actual_path(frame, car_position, upper_lane_center, color=(2, 135, 247), thickness=3):
+        car_path_upper_limit = (car_position[0], upper_lane_center[1])
+        cv2.line(frame, car_position, car_path_upper_limit, color=color, thickness=thickness)
+
+    @staticmethod
+    def draw_lanes(frame, center_line, right_line, color=(0, 255, 0), thickness=5):
+        cv2.line(frame, center_line.upper_point, center_line.lower_point, color=color, thickness=thickness)
+        cv2.line(frame, right_line.upper_point, right_line.lower_point, color=color, thickness=thickness)
+
+    @staticmethod
+    def draw_points(frame, endpoints, radius=10, color=(255, 0, 0), thickness=-1):
+        for point in endpoints:
+            cv2.circle(frame, point, radius, color, thickness=thickness)
+
+    @staticmethod
+    def draw_car_position(frame, car_position, color=(2, 135, 247), radius=20):
+        DrawFilter.draw_points(frame, [car_position], color=color, radius=radius)

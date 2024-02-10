@@ -5,11 +5,12 @@ import yaml
 import os
 import cv2
 import matplotlib.pyplot as plt
-from video_info import VideoInfo
-from vision_pipeline.filters.draw_filter import DrawFilter
 
+from objects.pipe_data import PipeData
+from objects.video_info import VideoInfo
 from vision_pipeline.pipeline import Pipeline
-from helpers import get_roi_bbox_for_video, stack_images
+from helpers import get_roi_bbox_for_video, stack_images, stack_images_v2
+
 
 def main(args):
     video_path = os.path.join(args.video_dir, args.video)
@@ -19,12 +20,11 @@ def main(args):
 
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    video_info = VideoInfo(video_name=args.video,video_roi_bbox=video_roi_bbox, height=height, width=width)
+    print(width, height)
+    video_info = VideoInfo(video_name=args.video, video_roi_bbox=video_roi_bbox, height=height, width=width)
 
     pipeline = Pipeline(args, video_info)
 
-
-    print(video_path)
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     speed = 1
@@ -37,23 +37,12 @@ def main(args):
             ret, frame = cap.read()
 
         if ret:
-            frame_copy = deepcopy(frame)
-
-            processed_frames, steering_angle, road_markings = pipeline.run_seq(frame)
-
-            draw_filter = DrawFilter(video_info=video_info)
-
-            drawn_frame = draw_filter.process(frame_copy, road_markings, steering_angle)
-            
-            processed_frames.append(drawn_frame)
-            #processed_frames = None
-
-            if processed_frames is not None:
-                imgStack = stack_images(0.5, processed_frames)
+            data: PipeData = pipeline.run_seq(frame)
+            if data.processed_frames is not None and len(data.processed_frames) > 0:
+                imgStack = stack_images_v2(1, data.processed_frames)
                 cv2.imshow('CarVision', imgStack)
             else:
-                cv2.imshow('CarVision', drawn_frame)
-
+                cv2.imshow('CarVision', data.frame)
 
             key = cv2.waitKey(5)
             # Press Q on keyboard to exit
