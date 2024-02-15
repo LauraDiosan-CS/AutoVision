@@ -28,15 +28,13 @@ class Pipeline:
         self.sign_detection_filter = SignsDetect(videoInfo=video_info, model=self.signs_model)
         self.draw_filter = DrawFilter(video_info=video_info)
 
-        self.lane_detection_configuration: list[BaseFilter] = [self.grayscale_filter, self.blur_filter, self.roi_filter,
-                                                               self.canny_edge_filter, self.lane_detection_filter,
-                                                               self.heading_error_filter, self.draw_filter]
+        self.lane_detection_configuration: list[BaseFilter] = [self.grayscale_filter, self.canny_edge_filter, self.blur_filter, self.dilation_filter, self.roi_filter,
+                                                               self.lane_detection_filter,self.heading_error_filter, self.draw_filter]
         self.sign_detection_configuration: list[BaseFilter] = [self.sign_detection_filter]
 
-        self.parallel_configurations: list[list[BaseFilter]] = [self.sign_detection_configuration,
-                                                                self.lane_detection_configuration]
+        self.parallel_configurations: list[list[BaseFilter]] = [self.lane_detection_configuration, self.sign_detection_configuration]
 
-    def run_seq(self, frame):
+    def run_seq(self, frame, frame_ct):
         data: PipeData = PipeData(frame=frame, road_markings=None, steering_angle=None, unfiltered_frame=deepcopy(frame))
 
         for config in self.parallel_configurations:

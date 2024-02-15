@@ -7,7 +7,7 @@ import cv2
 
 
 class DilationFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo, kernel_size=5):
+    def __init__(self, video_info: VideoInfo, kernel_size=1):
         super().__init__(video_info=video_info)
         self.kernel_size = kernel_size
 

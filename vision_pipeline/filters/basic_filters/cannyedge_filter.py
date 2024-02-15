@@ -7,7 +7,8 @@ import cv2
 
 
 class CannyEdgeFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo, low_threshold=50, high_threshold=50):
+    # params: low - 150, high - 250
+    def __init__(self, video_info: VideoInfo, low_threshold=150, high_threshold=250):
         super().__init__(video_info=video_info)
         self.low_threshold = low_threshold
         self.high_threshold = high_threshold

@@ -4,6 +4,7 @@ from objects.pipe_data import PipeData
 from objects.road_info import RoadMarkings, Line, Point
 from objects.video_info import VideoInfo
 import cv2
+from copy import deepcopy
 from vision_pipeline.filters.base_filter import BaseFilter
 from helpers import calculate_angle_with_Ox
 
@@ -16,12 +17,16 @@ class LaneDetectFilter(BaseFilter):
 
     def process(self, data: PipeData) -> PipeData:
         hough_lines = self.apply_houghLines(data.frame)
-        if hough_lines is not None:
-            # hough_lines = self.remove_roi_lines(hough_lines)
 
+        if hough_lines is not None:
             # lane detection
+            print('\n lines:', len(hough_lines))
             self.detect_max_lanes(hough_lines)
+            print('max center:', self.center_line)
+            print('max right:', self.right_line)
             self.extend_lanes()
+            print('ext center:', self.center_line)
+            print('ext right:', self.right_line)
             print('center:', self.center_line, 'right:', self.right_line)
             if (self.center_line and self.right_line) and (len(self.center_line) == 2 and len(self.right_line) == 2):
                 data.road_markings = RoadMarkings(left_line=None,
@@ -37,7 +42,8 @@ class LaneDetectFilter(BaseFilter):
                                                       lower_point=Point(x=self.right_line[1][0],
                                                                         y=self.right_line[1][1])
                                                   ))
-
+                data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
+                #print('center:', data.road_markings.center_line)
         return data
 
     # -----------------------------------------------
@@ -70,36 +76,72 @@ class LaneDetectFilter(BaseFilter):
                     elif x2 >= self.width / 2:
                         if abs(y1 - y2) > max_right_lane:
                             max_right_lane = abs(y1 - y2)
+
         return max_left_lane, max_right_lane
 
     def detect_max_lanes(self, hough_lines):
-        max_left_lane, max_right_lane = self.max_lane_lengths(hough_lines)
-        # resetting lanes
         self.center_line, self.right_line = [], []
+        max_left_lane = 0
+        max_right_lane = 0
 
         if hough_lines is not None:
             for line in hough_lines:
+
+                _, deg = calculate_angle_with_Ox(line)
+
                 is_horizontal = False
+                if abs(deg) < 5:
+                    is_horizontal = True
+
+                coords = line[0]
+
                 for x1, y1, x2, y2 in line:
-                    # checking  if the line is approximately vertical
-                    _, deg = calculate_angle_with_Ox(line)
-
-                    if abs(deg) < 5:
-                        is_horizontal = True
-
-                    coords = line[0]
-                    if not ((abs(y1 - y2) < 50) or (abs(x1 - x2) < 100)):
-
-                        if x2 < self.width / 2 and abs(
-                                y1 - y2) == max_left_lane and not is_horizontal and not self.center_line:
+                    if x2 < self.width / 2 and abs(y1 - y2) >= max_left_lane and not is_horizontal:
+                            max_left_lane = abs(y1 - y2)
                             for i in range(2):
                                 self.center_line.append((coords[2 * i], coords[2 * i + 1]))
-
-                        elif x2 > self.width / 2 and abs(
-                                y1 - y2) == max_right_lane and not is_horizontal and not self.right_line:
+                    elif x2 >= self.width / 2 and abs(y1 - y2) >= max_right_lane and not is_horizontal:
+                            max_right_lane = abs(y1 - y2)
                             for i in range(2):
                                 self.right_line.append((coords[2 * i], coords[2 * i + 1]))
 
+    
+    # def detect_max_lanes(self, hough_lines):
+    #     max_left_lane, max_right_lane = self.max_lane_lengths(hough_lines)
+    #     print('max center=',max_left_lane)
+    #     print('max right=', max_right_lane)
+    #     # resetting lanes
+    #     self.center_line, self.right_line = [], []
+
+    #     if hough_lines is not None:
+    #         print('lines 2:', len(hough_lines))
+    #         ct = 0
+    #         for line in hough_lines:
+    #             is_horizontal = False
+    #             for x1, y1, x2, y2 in line:
+    #                 # checking  if the line is approximately vertical
+    #                 _, deg = calculate_angle_with_Ox(line)
+
+    #                 if abs(deg) < 5:
+    #                     is_horizontal = True
+    #                     ct += 1
+    #                     continue
+                    
+    #                 coords = line[0]
+    #                 if not ((abs(y1 - y2) < 50) or (abs(x1 - x2) < 100)):
+    #                     print(f'x2:{x2}, w:{self.width/2}, abs:{abs(y1-y2)}, max c:{max_left_lane}, max r:{max_right_lane}, h:{is_horizontal}')
+    #                     if x2 < self.width / 2 and abs(
+    #                             y1 - y2) == max_left_lane and not self.center_line:
+    #                         print('if center')
+    #                         for i in range(2):
+    #                             self.center_line.append((coords[2 * i], coords[2 * i + 1]))
+
+    #                     elif x2 > self.width / 2 and abs(
+    #                             y1 - y2) == max_right_lane and not self.right_line:
+    #                         print('if right')
+    #                         for i in range(2):
+    #                             self.right_line.append((coords[2 * i], coords[2 * i + 1]))
+    #         print('ct:', ct)
     def extend_lanes(self):
         # left and right lanes extended down until lower limit
         ext_lower_left = []

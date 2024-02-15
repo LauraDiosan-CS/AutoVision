@@ -96,8 +96,7 @@ def detect_lanes(frame, low_threshold, high_threshold, prev_left_lane_endpoints,
 
     if roi is None:
         height, width = edges.shape
-        trapezoid_vertices = np.array([[(width * 0 - 100, height), (width * 0.2, height * 0.6),
-                                        (width * 0.8, height * 0.6), (width + 100, height)]], dtype=np.int32)
+        trapezoid_vertices = np.array([[-300, 640], [150, 350], [550, 350], [700, 640]], dtype=np.int32)
         mask = np.zeros_like(edges)
         cv2.fillPoly(mask, [trapezoid_vertices], 255)
         roi = mask
@@ -210,13 +209,13 @@ def detect_lanes(frame, low_threshold, high_threshold, prev_left_lane_endpoints,
     draw_endpoints(optional_frame, left_lane_endpoints, color=(0, 255, 0))
     draw_endpoints(optional_frame, right_lane_endpoints, color=(0, 255, 0))
 
-    print('left lane endp:', left_lane_endpoints)
-    print('righ lane endp:', right_lane_endpoints)
+    print('\nleft lane:', left_lane_endpoints)
+    print('righ lane:', right_lane_endpoints)
     print('horizon:', horizon_endpoints)
     left_intersection = find_intersection_point(left_lane_endpoints, horizon_endpoints)
-    print("left int:", left_intersection)
+    #print("left int:", left_intersection)
     right_intersection = find_intersection_point(right_lane_endpoints, horizon_endpoints)
-    print("right int:", right_intersection)
+    #print("right int:", right_intersection)
     draw_endpoints(optional_frame, [left_intersection, right_intersection], color=(0, 255, 0))
 
     th1 = [(200, 864),(420, 864), (1520, 864), (1720, 864)]
@@ -312,7 +311,7 @@ def main():
     prev_left_lane_endpoints = []
     prev_right_lane_endpoints = []
 
-    cap = cv2.VideoCapture('C:\\Users\\Rotaru Mira\\Desktop\\CarVision\\laneDetect\\videos\\signs.MP4')
+    cap = cv2.VideoCapture('C:\\Users\\Rotaru Mira\\Desktop\\CarVision\\laneDetect\\videos\\curved_lines_2024_1.avi')
 
     if not cap.isOpened():
         print("Error opening video file")

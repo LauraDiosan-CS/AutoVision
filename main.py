@@ -28,7 +28,7 @@ def main(args):
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     speed = 1
-
+    frame_ct = 0
     while cap.isOpened():
         if speed < 1:
             speed = 1
@@ -37,7 +37,7 @@ def main(args):
             ret, frame = cap.read()
 
         if ret:
-            data: PipeData = pipeline.run_seq(frame)
+            data: PipeData = pipeline.run_seq(frame, frame_ct)
             if data.processed_frames is not None and len(data.processed_frames) > 0:
                 imgStack = stack_images_v2(1, data.processed_frames)
                 cv2.imshow('CarVision', imgStack)
@@ -60,6 +60,7 @@ def main(args):
                 cv2.waitKey(0)
         else:
             break
+        frame_ct += 1
 
     cap.release()
     cv2.destroyAllWindows()
