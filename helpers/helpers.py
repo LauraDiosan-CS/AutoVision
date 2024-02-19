@@ -1,0 +1,120 @@
+import json
+import os
+import cv2
+import numpy as np
+
+import yaml
+
+from filters.base_filter import BaseFilter
+from objects.types.pipeline_config_types import FILTER_CLASS_LOOKUP, JSONPipelineConfig, PipelineConfig
+from objects.types.video_info import VideoInfo, VideoRois
+
+
+def parse_config(parser, config_file_path: str):
+    with open(config_file_path, 'r') as config:
+        data = yaml.safe_load(config)
+
+        for arg in data.keys():
+            # Check if the value is a path before using os.path.join
+            if os.path.sep in str(data[arg]):
+                data[arg] = os.path.join(os.path.abspath(""), data[arg])
+            print(f'--{arg} = {data[arg]}')
+            parser.add_argument(f'--{arg}', default=data[arg])
+        args = parser.parse_args()
+
+    config.close()
+    return args
+
+
+def parse_pipeline_configuration(JSON_pipeline_config: JSONPipelineConfig, video_info: VideoInfo,
+                                 models_dir_path: str) -> PipelineConfig:
+    parallel_config: PipelineConfig = []
+    for JSON_config in JSON_pipeline_config:
+        config: list[BaseFilter] = []
+        for filter_class_name, provided_params in JSON_config.items():
+            if filter_class_name not in FILTER_CLASS_LOOKUP:
+                raise ValueError("Invalid filter name")
+
+            filter_class_with_params = FILTER_CLASS_LOOKUP.get(filter_class_name)
+            filter_class = filter_class_with_params.filter_class
+            expected_params = filter_class_with_params.expected_params
+
+            # check if the args are valid
+            if "model" in provided_params:
+                if "model_path" in expected_params:
+                    provided_params["model_path"] = os.path.join(models_dir_path, provided_params["model"])
+                    del provided_params["model"]
+                else:
+                    raise ValueError(f"Provided model for {filter_class_name} that does not require it")
+
+            elif ("roi_type" in provided_params and
+                  provided_params["roi_type"] not in ["lines", "signs", "traffic_lights", "pedestrians"]):
+                raise ValueError(f"Invalid roi_type {provided_params['roi_type']} for {filter_class_name}")
+
+            elif any(arg not in expected_params for arg in provided_params):
+                raise ValueError(f"Unexpected argument for {filter_class_name}")
+
+            filter_instance = filter_class(video_info=video_info, **provided_params)
+            config.append(filter_instance)
+        parallel_config.append(config)
+
+    return parallel_config
+
+
+def stack_images_v2(scale, imgArray):
+    num_images = len(imgArray)
+
+    num_rows = int(np.sqrt(num_images))
+    num_cols = int(np.ceil(num_images / num_rows))
+
+    # Resize images based on the specified scale
+    resized_images = []
+    for img in imgArray:
+        if len(img.shape) == 2:  # Grayscale image
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)  # Convert to RGB
+        resized_img = cv2.resize(img, None, fx=scale, fy=scale)
+        resized_images.append(resized_img)
+
+    # Calculate canvas dimensions to fit all images
+    canvas_height = num_rows * resized_images[0].shape[0]
+    canvas_width = num_cols * resized_images[0].shape[1]
+
+    # Create an empty canvas to place the images
+    canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+
+    # Place resized images onto the canvas
+    idx = 0
+    for i in range(num_rows):
+        for j in range(num_cols):
+            if idx < num_images:
+                y_start = i * resized_images[0].shape[0]
+                y_end = (i + 1) * resized_images[0].shape[0]
+                x_start = j * resized_images[0].shape[1]
+                x_end = (j + 1) * resized_images[0].shape[1]
+                canvas[y_start:y_end, x_start:x_end] = resized_images[idx]
+                idx += 1
+
+    return canvas
+
+
+def get_roi_bbox_for_video(video_name, roi_config_path: str) -> VideoRois:
+    if not os.path.exists(roi_config_path):
+        raise FileNotFoundError(f"File not found: {roi_config_path}")
+
+    with open(roi_config_path, 'r') as file:
+        all_video_rois: dict[str, VideoRois] = json.load(file)
+
+    if video_name in all_video_rois.keys():
+        return all_video_rois[video_name]
+    else:
+        raise ValueError(f"Video name {video_name} not found in {roi_config_path}")
+
+
+def update_roi_bbox_for_video(video_name, roi_bbox, roi_config_path: str):
+    if not os.path.exists(roi_config_path):
+        raise FileNotFoundError(f"File not found: {roi_config_path}")
+
+    with open(roi_config_path, 'r') as file:
+        video_data = json.load(file)
+
+    raise NotImplementedError("This function is not fully implemented yet")

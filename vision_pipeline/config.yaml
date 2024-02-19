@@ -1,4 +1,0 @@
-yolo_signs: 'laneDetect\models\best_signs_current.pt'
-video: 'curved_lines_2024_1.avi'
-video_dir: 'laneDetect\videos'
-results_dir: 'laneDetect\results'
