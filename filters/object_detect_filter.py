@@ -26,6 +26,7 @@ class ObjectDetectionFilter(BaseFilter):
         
         yolo_results = self.model(data.frame)
         data = self.pre_process_result(yolo_results[0], data)
+        print('signs:', data.traffic_signs)
         data.frame = yolo_results[0].plot()
         data.processed_frames.append(data.frame.copy())
         return data
@@ -36,10 +37,9 @@ class SignsDetect(ObjectDetectionFilter):
         super().__init__(video_info, model_path)
 
     def get_distance_from_realsense(self, frame):
-        pass
+        return 0
 
     def pre_process_result(self, result, data):
-        traffic_signs = []
         labels = result.names
         print('\nresult:', labels)
 
@@ -51,14 +51,13 @@ class SignsDetect(ObjectDetectionFilter):
 
             bbox_tensor_cpu = object.boxes.xyxy.cpu()
             bbox_list = [float(f'{el:.4f}') for el in bbox_tensor_cpu.tolist()[0]]
-            bbox_list = []
 
-            distance = self.get_distance_from_realsense(data.depth_frame)
+            #distance = self.get_distance_from_realsense(data.depth_frame)
 
             road_object = RoadObject(bbox= bbox_list, label= prediction_label,
                                      conf= confidence, distance=None)
             
-            traffic_signs.append(road_object)
+            data.traffic_signs.append(road_object)
 
             print('\ntypes:')
             print('bbox:', type(bbox_list), bbox_list)
@@ -66,7 +65,6 @@ class SignsDetect(ObjectDetectionFilter):
             print('label:', type(prediction_label))
             print("ro", road_object)
 
-        data.traffic_signs = traffic_signs
         return data
 
             

@@ -14,14 +14,41 @@ class DrawFilter(BaseFilter):
         self.car_position = (int(self.width / 2), self.height)
         self.center_line = None
         self.right_line = None
-
+              
     def process(self, data: PipeData) -> PipeData:
         if data.unfiltered_frame is None:
             return data
         frame = data.unfiltered_frame
+        traffic_signs = data.traffic_signs
 
         self.draw_car_position(frame, self.car_position)
+        signs = []
 
+        # drawing signs info
+        i = 0
+        if len(data.traffic_signs):
+            for sign in traffic_signs:
+                self.draw_sign(frame, sign)
+
+                signs_dict = {'Sign':'', 'Confidence':'', 'Estimated Distance': ''}
+                signs_dict['Sign'] = sign.label
+                signs_dict['Confidence'] = sign.conf 
+                signs_dict['Estimated Distance'] = 0
+                
+                signs.append(signs_dict)
+            
+            sorted_signs = sorted(signs, key = lambda x: float(x['Estimated Distance']))
+            
+            for sign in sorted_signs:
+                text = ''
+                for key in sign.keys():
+                    text += f'{key}: {sign[key]},'
+                
+                for string in text.split(','):
+                    self.put_text(frame, string, position=(0, 100 + i), color=(255, 0, 0))
+                    i += 20
+
+        # drawing lane info
         if data.road_markings is not None:
             center_line = data.road_markings.center_line
             right_line = data.road_markings.right_line
@@ -47,7 +74,7 @@ class DrawFilter(BaseFilter):
 
     @staticmethod
     def put_text(frame, text, position=(0, 100), font=cv2.FONT_HERSHEY_SIMPLEX,
-                 font_scale=0.5, color=(0, 255, 255), thickness=2):
+                 font_scale=0.8, color=(0, 255, 255), thickness=2):
         cv2.putText(frame, text, position, font, font_scale, color, thickness)
 
     @staticmethod
@@ -63,6 +90,12 @@ class DrawFilter(BaseFilter):
         cv2.fillPoly(lane_roi_mask, [lane_roi_points], mask_color)
 
         cv2.addWeighted(frame, 1, lane_roi_mask, alpha, 0, frame)
+
+    def draw_sign(self, frame, sign):
+        top_left = (int(sign.bbox[0]), int(sign.bbox[1]))
+        bottom_right = (int(sign.bbox[2]), int(sign.bbox[3]))
+
+        cv2.rectangle(frame, top_left, bottom_right, color=(0, 255, 0), thickness = 3)
 
     @staticmethod
     def draw_lane_endpoints(frame, center_line: Line, right_line: Line, color_center=(255, 0, 0),

@@ -29,6 +29,7 @@ class PipeData:
             self.road_markings = other.road_markings
         if other.heading_error is not None:
             self.heading_error = other.heading_error
+        self.traffic_signs.extend(other.traffic_signs)
 
         # Merge processed frames
         self.processed_frames.extend(other.processed_frames)
