@@ -6,5 +6,5 @@ Line = namedtuple("Line", ["upper_point", "lower_point"])
 
 RoadMarkings = namedtuple("RoadMarkings", ["left_line","center_line","right_line"])
 
-RoadObject = namedtuple("Object", ["bbox", "label", "conf", "distance"])
+RoadObject = namedtuple("RoadObject", ["bbox", "label", "conf", "distance"])
 

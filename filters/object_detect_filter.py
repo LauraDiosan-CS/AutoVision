@@ -35,8 +35,11 @@ class SignsDetect(ObjectDetectionFilter):
     def __init__(self, video_info: VideoInfo, model_path):
         super().__init__(video_info, model_path)
 
+    def get_distance_from_realsense(self, frame):
+        pass
+
     def pre_process_result(self, result, data):
-        data.traffic_signs = []
+        traffic_signs = []
         labels = result.names
         print('\nresult:', labels)
 
@@ -47,13 +50,23 @@ class SignsDetect(ObjectDetectionFilter):
             confidence = f'{object.boxes.conf.item():.2f}'
 
             bbox_tensor_cpu = object.boxes.xyxy.cpu()
-            bbox_list = [f'{el:.4f}' for el in bbox_tensor_cpu.tolist()[0]]
+            bbox_list = [float(f'{el:.4f}') for el in bbox_tensor_cpu.tolist()[0]]
+            bbox_list = []
+
+            distance = self.get_distance_from_realsense(data.depth_frame)
 
             road_object = RoadObject(bbox= bbox_list, label= prediction_label,
-                                     conf= confidence, distance=0)
+                                     conf= confidence, distance=None)
             
-            data.traffic_signs.append(road_object)
+            traffic_signs.append(road_object)
 
+            print('\ntypes:')
+            print('bbox:', type(bbox_list), bbox_list)
+            print('conf:', type(confidence))
+            print('label:', type(prediction_label))
+            print("ro", road_object)
+
+        data.traffic_signs = traffic_signs
         return data
 
             
