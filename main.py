@@ -54,7 +54,8 @@ def main(args):
         width, height = 1920, 1080
         pipelineCamera = rs.pipeline()
         realsense_config = rs.config()
-        realsense_config.enable_stream(rs.stream.depth, width, height, rs.format.z16, 30)
+        realsense_config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        realsense_config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, 30)
         pipelineCamera.start(realsense_config)
     else:
         cap = cv2.VideoCapture(video_path)
@@ -90,7 +91,9 @@ def main(args):
 
             if not color_frame:
                 continue
-
+            
+            color_frame = np.asanyarray(color_frame.get_data())
+            depth_frame = np.asanyarray(depth_frame.get_data())
             process_frame(deepcopy(color_frame), depth_frame, pool_manager)
 
             key = cv2.waitKey(5)

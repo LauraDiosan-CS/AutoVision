@@ -5,7 +5,7 @@ class PipeData:
         self.road_markings = None
         self.heading_error = None
         self.unfiltered_frame = unfiltered_frame
-        self.traffic_signs = None
+        self.traffic_signs = []
         self.processed_frames = []
 
     def __str__(self):
