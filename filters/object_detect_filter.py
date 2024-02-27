@@ -1,3 +1,5 @@
+import cv2
+import datashader
 from ultralytics import YOLO
 import torch
 
@@ -36,8 +38,17 @@ class SignsDetect(ObjectDetectionFilter):
     def __init__(self, video_info: VideoInfo, model_path):
         super().__init__(video_info, model_path)
 
-    def get_distance_from_realsense(self, frame):
-        return 0
+    def get_distance_from_realsense(self, frame, bbox_list):
+
+        xscaling = 0.3333333333
+        yscaling = 0.4444444444
+        x=int((bbox_list[0]+bbox_list[2])/2*xscaling)
+        y=int((bbox_list[1]+bbox_list[3])/2*yscaling)
+        print('x', x)
+        print('y', y)
+        print('data', frame[y,x])
+        return frame[y,x]
+
 
     def pre_process_result(self, result, data):
         labels = result.names
@@ -52,10 +63,11 @@ class SignsDetect(ObjectDetectionFilter):
             bbox_tensor_cpu = object.boxes.xyxy.cpu()
             bbox_list = [float(f'{el:.4f}') for el in bbox_tensor_cpu.tolist()[0]]
 
-            #distance = self.get_distance_from_realsense(data.depth_frame)
+            distance = self.get_distance_from_realsense(data.depth_frame, bbox_list)
 
-            road_object = RoadObject(bbox= bbox_list, label= prediction_label,
-                                     conf= confidence, distance=None)
+            cv2.circle(data.frame, (int((bbox_list[0]+bbox_list[2])/2), int((bbox_list[1]+bbox_list[3])/2)),4,(255,0,0), 5)
+
+            road_object = RoadObject(bbox=bbox_list, label=prediction_label, conf=confidence, distance=distance)
             
             data.traffic_signs.append(road_object)
 

@@ -33,7 +33,7 @@ class DrawFilter(BaseFilter):
                 signs_dict = {'Sign':'', 'Confidence':'', 'Estimated Distance': ''}
                 signs_dict['Sign'] = sign.label
                 signs_dict['Confidence'] = sign.conf 
-                signs_dict['Estimated Distance'] = 0
+                signs_dict['Estimated Distance'] = sign.distance
                 
                 signs.append(signs_dict)
             

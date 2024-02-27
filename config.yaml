@@ -1,6 +1,6 @@
 models_dir_path: 'objects\models\'
 pipeline_config_path: 'objects\config\signs_test_config.json'
 roi_config_path: 'objects\config\roi.json'
-video_name: 'signs.MP4'
+video_name: 'Realsense'
 videos_dir: 'videos'
 results_dir: 'results'
