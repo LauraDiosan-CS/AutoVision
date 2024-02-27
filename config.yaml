@@ -1,6 +1,6 @@
 models_dir_path: 'objects\models\'
-pipeline_config_path: 'objects\config\parallel_pipeline_config.json'
+pipeline_config_path: 'objects\config\signs_test_config.json'
 roi_config_path: 'objects\config\roi.json'
-video_name: 'curved_lines_2024_1.avi'
+video_name: 'signs.MP4'
 videos_dir: 'videos'
 results_dir: 'results'

@@ -23,7 +23,7 @@ class ProcessPipelineManager:
 
     def run(self, frame):
         start_time = time.time()
-        data: PipeData = PipeData(frame=frame, road_markings=None, heading_error=None,
+        data: PipeData = PipeData(frame=frame, road_markings=None, heading_error=None, traffic_signs=None,
                                   unfiltered_frame=frame.copy())
         for process, pipe in self.parallel_processes:
             pipe.send(data)

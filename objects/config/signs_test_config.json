@@ -1,0 +1,7 @@
+[
+    {
+        "signs_detect": {
+        "model": "best_signs_current.pt"
+        }
+    }
+]
