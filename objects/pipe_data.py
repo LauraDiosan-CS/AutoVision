@@ -1,14 +1,12 @@
 class PipeData:
-    def __init__(self, frame, road_markings, heading_error, unfiltered_frame, traffic_signs, processed_frames=None):
+    def __init__(self, frame, depth_frame, unfiltered_frame):
         self.frame = frame
-        self.road_markings = road_markings
-        self.heading_error = heading_error
+        self.depth_frame = depth_frame
+        self.road_markings = None
+        self.heading_error = None
         self.unfiltered_frame = unfiltered_frame
-        self.traffic_signs = traffic_signs
-
-        if processed_frames is None:
-            processed_frames = []
-        self.processed_frames = processed_frames
+        self.traffic_signs = None
+        self.processed_frames = []
 
     def __str__(self):
         return (f"PipeData(..., heading_error={self.heading_error}, "
