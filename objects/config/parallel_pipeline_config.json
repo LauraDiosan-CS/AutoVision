@@ -5,13 +5,13 @@
         }
     },
     {
-        "traffic_light_detect": {
-            "model": "best_lights.pt"
+        "signs_detect": {
+            "model": "best_signs_current.pt"
         }
     },
     {
-        "pedestrian_detect": {
-            "model": "best_lights.pt"
+        "signs_detect": {
+            "model": "best_signs_current.pt"
         }
     },
     {
