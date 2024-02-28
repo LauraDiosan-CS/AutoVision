@@ -21,7 +21,7 @@ class ProcessPipelineManager:
             process.start()
             self.parallel_processes.append((process, pipe))
 
-    def run(self, frame, depth_frame):
+    def run(self, frame, depth_frame=None):
         start_time = time.time()
         data: PipeData = PipeData(frame=frame, depth_frame=depth_frame,unfiltered_frame=frame.copy())
         for process, pipe in self.parallel_processes:

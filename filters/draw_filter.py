@@ -45,7 +45,7 @@ class DrawFilter(BaseFilter):
                     text += f'{key}: {sign[key]},'
                 
                 for string in text.split(','):
-                    self.put_text(frame, string, position=(0, 100 + i), color=(255, 0, 0))
+                    self.put_text(frame, string, position=(0, 130 + i), color=(255, 0, 0))
                     i += 20
 
         # drawing lane info

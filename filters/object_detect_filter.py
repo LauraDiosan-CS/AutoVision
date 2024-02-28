@@ -1,5 +1,4 @@
 import cv2
-import datashader
 from ultralytics import YOLO
 import torch
 
@@ -40,13 +39,16 @@ class SignsDetect(ObjectDetectionFilter):
 
     def get_distance_from_realsense(self, frame, bbox_list):
 
-        xscaling = 0.3333333333
-        yscaling = 0.4444444444
-        x=int((bbox_list[0]+bbox_list[2])/2*xscaling)
-        y=int((bbox_list[1]+bbox_list[3])/2*yscaling)
-        print('x', x)
-        print('y', y)
-        print('data', frame[y,x])
+        if frame is None:
+            return 0
+        else:
+            xscaling = 0.3333333333
+            yscaling = 0.4444444444
+            x=int((bbox_list[0]+bbox_list[2])/2*xscaling)
+            y=int((bbox_list[1]+bbox_list[3])/2*yscaling)
+            print('x', x)
+            print('y', y)
+            print('data', frame[y,x])
         return frame[y,x]
 
 
@@ -83,8 +85,14 @@ class SignsDetect(ObjectDetectionFilter):
 class TrafficLightDetect(ObjectDetectionFilter):
     def __init__(self, video_info: VideoInfo, model_path):
         super().__init__(video_info, model_path)
+    
+    def pre_process_result(self, result, data):
+        return data
 
 
 class PedestrianDetect(ObjectDetectionFilter):
     def __init__(self, video_info: VideoInfo, model_path):
         super().__init__(video_info, model_path)
+    
+    def pre_process_result(self, result, data):
+        return data
