@@ -1,7 +1,22 @@
 [
     {
-        "signs_detect": {
-        "model": "best_signs_current.pt"
-        }
+        "grayscale": {},
+        "canny_edge": {
+            "low_threshold": 150,
+            "high_threshold": 250
+        },
+        "blur": {
+            "kernel_size": 7,
+            "sigmaX": 1
+        },
+        "dilation": {
+            "kernel_size": 1,
+            "iterations": 1
+        },
+        "roi": {
+            "roi_type": "lines"
+        },
+        "lane_detect": {},
+        "heading_error": {}
     }
 ]

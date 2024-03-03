@@ -14,6 +14,7 @@ class DrawFilter(BaseFilter):
         self.car_position = (int(self.width / 2), self.height)
         self.center_line = None
         self.right_line = None
+        self.stop_lines = None
               
     def process(self, data: PipeData) -> PipeData:
         if data.unfiltered_frame is None:
@@ -24,6 +25,11 @@ class DrawFilter(BaseFilter):
         self.draw_car_position(frame, self.car_position)
         signs = []
 
+        # drawing horizontal lines
+        data = self.filter(data)
+        if data.road_markings is not None and len(data.road_markings.stop_lines):
+            self.draw_horizontals(frame, data.road_markings.stop_lines, data.road_markings.right_int, data.road_markings.center_int)
+            
         # drawing signs info
         i = 0
         if len(data.traffic_signs):
@@ -57,7 +63,7 @@ class DrawFilter(BaseFilter):
                                  (center_line.upper_point.y + right_line.upper_point.y) // 2)
 
             self.draw_lane_endpoints(frame, center_line, right_line)
-            self.draw_lanes(frame, center_line, right_line)
+            #self.draw_lanes(frame, center_line, right_line)
             self.define_lane_area(frame, center_line, right_line)
 
             self.draw_correct_path(frame, self.car_position, upper_lane_center)
@@ -90,6 +96,33 @@ class DrawFilter(BaseFilter):
         cv2.fillPoly(lane_roi_mask, [lane_roi_points], mask_color)
 
         cv2.addWeighted(frame, 1, lane_roi_mask, alpha, 0, frame)
+
+    def filter(self, data):
+        image = data.frame.copy()
+        gray = cv2.cvtColor(data.frame, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (5,5),0)
+
+        edges = cv2.Canny(blurred, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        image = cv2.drawContours(image, contours, -1, (0, 255, 75), 2)
+        data.processed_frames.append(image)
+
+        return data
+    
+    def draw_horizontals(self, frame, lines, right_int, center_int):
+
+        for line in lines:
+
+            cv2.line(frame, line[0], line[1], color=(255, 0, 0), thickness = 2)
+            cv2.circle(frame, line[0], radius=3, color=(0,0,255))
+            cv2.circle(frame, line[1], radius=3, color=(0,0,255))
+
+        for p in right_int:
+            cv2.circle(frame, p, radius = 3, color=(0,0,255))
+        
+        for p in center_int:
+            cv2.circle(frame, p, radius =3, color=(0,0,255))
 
     def draw_sign(self, frame, sign):
         top_left = (int(sign.bbox[0]), int(sign.bbox[1]))

@@ -5,6 +5,7 @@ from objects.types.road_info import RoadMarkings, Line, Point
 from objects.types.video_info import VideoInfo
 import cv2
 from filters.base_filter import BaseFilter
+import math
 
 
 def calculate_angle_with_Ox(line):
@@ -22,6 +23,7 @@ class LaneDetectFilter(BaseFilter):
         super().__init__(video_info=video_info)
         self.center_line = []
         self.right_line = []
+        self.stop_lines = []
 
     def process(self, data: PipeData) -> PipeData:
         hough_lines = self.apply_houghLines(data.frame)
@@ -36,7 +38,10 @@ class LaneDetectFilter(BaseFilter):
             # print('ext center:', self.center_line)
             # print('ext right:', self.right_line)
             # print('center:', self.center_line, 'right:', self.right_line)
+                
             if (self.center_line and self.right_line) and (len(self.center_line) == 2 and len(self.right_line) == 2):
+                horizontals, right_intersections, center_intersections = self.detect_horizontals(hough_lines, self.center_line, self.right_line)
+
                 data.road_markings = RoadMarkings(left_line=None,
                                                   center_line=Line(
                                                       upper_point=Point(x=self.center_line[0][0],
@@ -49,7 +54,21 @@ class LaneDetectFilter(BaseFilter):
                                                                         y=self.right_line[0][1]),
                                                       lower_point=Point(x=self.right_line[1][0],
                                                                         y=self.right_line[1][1])
-                                                  ))
+                                                  ),
+                                                  stop_lines= [
+                                                      Line( 
+                                                      upper_point=Point(x=stop_line[0][0],
+                                                                        y=stop_line[0][1]),
+                                                      lower_point=Point(x=stop_line[1][0],
+                                                                        y=stop_line[1][1])
+                                                      ) 
+                                                      for stop_line in self.stop_lines
+                                                  ],
+                                                  horizontals=horizontals,
+                                                  right_int=right_intersections,
+                                                  center_int=center_intersections
+                                                  )
+                
                 data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
                 # print('center:', data.road_markings.center_line)
         return data
@@ -75,6 +94,81 @@ class LaneDetectFilter(BaseFilter):
                             max_right_lane = abs(y1 - y2)
 
         return max_left_lane, max_right_lane
+
+    def distances(self):
+        '''The distance between 2 lines is used to filter out the horizontal lines that appear clustered in the same area
+        and it's measured by taking a point from one line and calculate it's perpendicular onto the second line'''
+
+        #print('\ndistances:')
+        if len(self.stop_lines):
+            line1 = self.stop_lines[0]
+            slope1 = (line1[1][1] - line1[0][1]) / (line1[1][0] - line1[0][0])
+            y_intercept_1 = line1[0][1] - slope1 * line1[0][0]
+
+            for line2 in self.stop_lines[1:]:
+                slope2 = (line2[1][1] - line2[0][1]) / (line2[1][0] - line2[0][0])
+                y_intercept_2 = line2[0][1] - slope2 * line2[0][0]
+
+                dist = abs(-y_intercept_1 + y_intercept_2) / math.sqrt(slope2 ** 2 + 1)
+
+                y_intercept_1 = y_intercept_2
+                if dist < 500:
+                    self.stop_lines.remove(line2)
+                else:
+                    #print('dist:', dist)
+                    pass
+
+        
+    def detect_horizontals(self, hough_lines, center_line, right_line):
+        stop_lines = []
+        horizontals = []
+        right_intersections = []
+        center_intersections = []
+
+        if hough_lines is not None:
+            for line in hough_lines:
+                _, deg = calculate_angle_with_Ox(line)
+                if abs(deg) < 3:
+                    horizontals.append(line)
+
+        for line in horizontals:
+            #print('bef:', line)
+           # print('\nline:', line)
+            # slope = (y2 - y1)/(x2 - x1)
+            slope_center = (center_line[1][1] - center_line[0][1]) / (center_line[1][0] - center_line[0][0])
+            slope_right = (right_line[1][1] - right_line[0][1]) / (right_line[1][0] - right_line[0][0])
+            slope_line = (line[0][3] - line[0][1]) / (line[0][2] - line[0][0])
+
+            # y_intercept = y - slope * x   
+            y_intercept_center = center_line[0][1] - slope_center * center_line[0][0]
+            y_intercept_right = right_line[0][1] - slope_right * right_line[0][0]
+            y_intercept_line = line[0][1] - slope_line * line[0][0]
+
+            # x_intersect = (y_intercept2 -y_intercept1) / (slope1 - slope2)
+            x_intersect_center = (y_intercept_center - y_intercept_line) / (slope_line - slope_center)
+            x_intersect_right = (y_intercept_right - y_intercept_line) / (slope_line - slope_right)
+
+            # y_intersect = slope * x_intersect + y_intercept
+            y_intersect_center = slope_center * x_intersect_center + y_intercept_center
+            y_intersect_right = slope_right * x_intersect_right + y_intercept_right
+
+            intersect_center = (int(x_intersect_center), int(y_intersect_center))
+            intersect_right = (int(x_intersect_right), int(y_intersect_right))
+
+            # print('center:', intersect_center)
+            # print('right:', intersect_right)
+            
+            right_intersections.append(intersect_right)
+            center_intersections.append(intersect_center)
+
+            horizontal_line = (intersect_center, intersect_right)
+            #print('aft:', horizontal_line)
+            stop_lines.append(horizontal_line)
+        
+        #print('stop lines:', self.stop_lines)
+        self.stop_lines = stop_lines
+        self.distances()
+        return horizontals, right_intersections, center_intersections
 
     def detect_max_lanes(self, hough_lines):
         self.center_line, self.right_line = [], []
@@ -173,4 +267,6 @@ class LaneDetectFilter(BaseFilter):
         return distance
 
     def find_intersection_x_coordinate(self, slope, y_intercept, y_horizontal_line):
+        # slope, y_intercept, startpoint - of the same singular line
+
         return int((y_horizontal_line - y_intercept) / slope)
