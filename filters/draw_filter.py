@@ -10,7 +10,7 @@ import numpy as np
 
 class DrawFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo):
-        super().__init__(video_info=video_info)
+        super().__init__(video_info=video_info, visualize=True)
         self.car_position = (int(self.width / 2), self.height)
         self.center_line = None
         self.right_line = None
@@ -23,24 +23,23 @@ class DrawFilter(BaseFilter):
         traffic_signs = data.traffic_signs
 
         self.draw_car_position(frame, self.car_position)
-        signs = []
+
+        self.draw_command(frame, data.command)
 
         # drawing horizontal lines
         data = self.filter(data)
         if data.road_markings is not None and len(data.road_markings.stop_lines):
             self.draw_horizontals(frame, data.road_markings.stop_lines, data.road_markings.right_int, data.road_markings.center_int)
-            
+
         # drawing signs info
+        signs = []
         i = 0
         if len(data.traffic_signs):
             for sign in traffic_signs:
                 self.draw_sign(frame, sign)
 
-                signs_dict = {'Sign':'', 'Confidence':'', 'Estimated Distance': ''}
-                signs_dict['Sign'] = sign.label
-                signs_dict['Confidence'] = sign.conf 
-                signs_dict['Estimated Distance'] = sign.distance
-                
+                signs_dict = {'Sign': sign.label, 'Confidence': sign.conf, 'Estimated Distance': sign.distance}
+
                 signs.append(signs_dict)
             
             sorted_signs = sorted(signs, key = lambda x: float(x['Estimated Distance']))
@@ -75,8 +74,8 @@ class DrawFilter(BaseFilter):
             self.put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
 
         data.frame = frame
-        data.processed_frames.append(deepcopy(data.frame))
-        return data
+
+        return super().process(data)
 
     @staticmethod
     def put_text(frame, text, position=(0, 100), font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -159,3 +158,6 @@ class DrawFilter(BaseFilter):
     @staticmethod
     def draw_car_position(frame, car_position, color=(2, 135, 247), radius=20):
         DrawFilter.draw_points(frame, [car_position], color=color, radius=radius)
+
+    def draw_command(self, frame, command: str):
+        self.put_text(frame, f'Command: {command}', position=(0, 20), color=(0, 255, 0))

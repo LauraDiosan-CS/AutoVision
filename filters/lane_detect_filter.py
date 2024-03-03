@@ -19,8 +19,8 @@ def calculate_angle_with_Ox(line):
 
 
 class LaneDetectFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo):
-        super().__init__(video_info=video_info)
+    def __init__(self, video_info: VideoInfo, visualize: bool):
+        super().__init__(video_info=video_info, visualize=visualize)
         self.center_line = []
         self.right_line = []
         self.stop_lines = []
@@ -71,7 +71,8 @@ class LaneDetectFilter(BaseFilter):
                 
                 data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
                 # print('center:', data.road_markings.center_line)
-        return data
+
+        return super().process(data)
 
     # -----------------------------------------------
     # Processing Methods

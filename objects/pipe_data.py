@@ -1,3 +1,6 @@
+from objects.types.road_info import RoadObject
+
+
 class PipeData:
     def __init__(self, frame, depth_frame, unfiltered_frame):
         self.frame = frame
@@ -5,7 +8,11 @@ class PipeData:
         self.road_markings = None
         self.heading_error = None
         self.unfiltered_frame = unfiltered_frame
-        self.traffic_signs = []
+        self.traffic_signs: list[RoadObject] = []
+        self.traffic_lights: list[RoadObject] = []
+        self.pedestrians: list[RoadObject] = []
+        self.horizontal_lines: list[RoadObject] = []
+        self.command: str = ""
         self.processed_frames = []
 
     def __str__(self):
@@ -27,7 +34,12 @@ class PipeData:
             self.road_markings = other.road_markings
         if other.heading_error is not None:
             self.heading_error = other.heading_error
+        if other.command != "":
+            self.command = other.command
         self.traffic_signs.extend(other.traffic_signs)
+        self.traffic_lights.extend(other.traffic_lights)
+        self.pedestrians.extend(other.pedestrians)
+        self.horizontal_lines.extend(other.horizontal_lines)
 
         # Merge processed frames
         self.processed_frames.extend(other.processed_frames)

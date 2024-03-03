@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import torch.multiprocessing as mp
 from filters.base_filter import BaseFilter
+from behaviour_planner import BehaviourPlanner
 from filters.draw_filter import DrawFilter
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
@@ -18,6 +19,7 @@ class ProcessPipelineManager:
                  video_info: VideoInfo, save=False, args=None):
         self.parallel_processes = []
         self.draw_filter = DrawFilter(video_info=video_info)
+        self.behaviour_planner = BehaviourPlanner()
 
         for config in parallel_config:
             pipe, subprocess_pipe = mp.Pipe()
@@ -84,11 +86,9 @@ class ProcessPipelineManager:
 
         output_video_writer.release()
 
-
-    def run(self, frame, depth_frame=None):
+    def run(self, frame, visualize: False, depth_frame=None):
         start_time = time.time()
         data: PipeData = PipeData(frame=frame, depth_frame=depth_frame, unfiltered_frame=frame.copy())
-
         for process, pipe in self.parallel_processes:
             pipe.send(data)
 
@@ -99,9 +99,16 @@ class ProcessPipelineManager:
             new_data = pipe.recv()
             data = data.merge(new_data)
 
-        data = self.draw_filter.process(data)
         end_time = time.time()
 
         print(f"Parallel execution time: {end_time - start_time} seconds")
+
+        data.command = self.behaviour_planner.run_iteration(traffic_signs=data.traffic_signs,
+                                                            traffic_lights=data.traffic_lights,
+                                                            pedestrians=data.pedestrians,
+                                                            horizontal_lines=data.horizontal_lines)
+        print(data.command)
+        if visualize:
+            data = self.draw_filter.process(data)
 
         return data

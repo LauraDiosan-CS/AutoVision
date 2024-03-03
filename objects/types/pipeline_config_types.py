@@ -19,14 +19,14 @@ PipelineConfig = list[list[BaseFilter]]
 FilterClassWithParams = namedtuple("FilterClassWithParams", ["filter_class", "expected_params"])
 
 FILTER_CLASS_LOOKUP: dict[str:FilterClassWithParams] = {
-    "blur": FilterClassWithParams(BlurFilter, ["kernel_size", "sigmaX"]),
-    "dilation": FilterClassWithParams(DilationFilter, ["kernel_size", "iterations"]),
-    "grayscale": FilterClassWithParams(GrayScaleFilter, []),
-    "canny_edge": FilterClassWithParams(CannyEdgeFilter, ["low_threshold", "high_threshold"]),
-    "roi": FilterClassWithParams(ROIFilter, ["roi_type"]),
-    "lane_detect": FilterClassWithParams(LaneDetectFilter, []),
-    "heading_error": FilterClassWithParams(HeadingErrorFilter, []),
-    "signs_detect": FilterClassWithParams(SignsDetect, ["model_path"]),
-    "traffic_light_detect": FilterClassWithParams(TrafficLightDetect, ["model_path"]),
-    "pedestrian_detect": FilterClassWithParams(PedestrianDetect, ["model_path"])
+    "blur": FilterClassWithParams(BlurFilter, ["visualize","kernel_size", "sigmaX"]),
+    "dilation": FilterClassWithParams(DilationFilter, ["visualize","kernel_size", "iterations"]),
+    "grayscale": FilterClassWithParams(GrayScaleFilter, ["visualize"]),
+    "canny_edge": FilterClassWithParams(CannyEdgeFilter, ["visualize","low_threshold", "high_threshold"]),
+    "roi": FilterClassWithParams(ROIFilter, ["visualize","roi_type"]),
+    "lane_detect": FilterClassWithParams(LaneDetectFilter, ["visualize"]),
+    "heading_error": FilterClassWithParams(HeadingErrorFilter, ["visualize"]),
+    "signs_detect": FilterClassWithParams(SignsDetect, ["visualize","model_path"]),
+    "traffic_light_detect": FilterClassWithParams(TrafficLightDetect, ["visualize","model_path"]),
+    "pedestrian_detect": FilterClassWithParams(PedestrianDetect, ["visualize","model_path"])
 }

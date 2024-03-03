@@ -1,22 +1,32 @@
 [
     {
-        "grayscale": {},
+        "grayscale": {
+            "visualize": true
+        },
         "canny_edge": {
             "low_threshold": 150,
-            "high_threshold": 250
+            "high_threshold": 250,
+            "visualize": false
         },
         "blur": {
             "kernel_size": 7,
-            "sigmaX": 1
+            "sigmaX": 1,
+            "visualize": false
         },
         "dilation": {
             "kernel_size": 1,
-            "iterations": 1
+            "iterations": 1,
+            "visualize": false
         },
         "roi": {
-            "roi_type": "lines"
+            "roi_type": "lines",
+            "visualize": true
         },
-        "lane_detect": {},
-        "heading_error": {}
+        "lane_detect": {
+          "visualize": false
+        },
+        "heading_error": {
+          "visualize": true
+        }
     }
 ]

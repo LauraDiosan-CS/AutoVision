@@ -5,8 +5,9 @@ from objects.types.video_info import VideoRois, VideoInfo
 
 
 class BaseFilter(ABC):
-    def __init__(self, video_info: VideoInfo):
+    def __init__(self, video_info: VideoInfo, visualize: bool):
         self.video_info = video_info
+        self.visualize = visualize
 
     @property
     def video_name(self):
@@ -26,4 +27,9 @@ class BaseFilter(ABC):
 
     @abstractmethod
     def process(self, data: PipeData) -> PipeData:
-        pass
+        # process the data
+
+        if self.visualize:
+            data.processed_frames.append(data.frame.copy())
+
+        return data

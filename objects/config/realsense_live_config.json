@@ -5,7 +5,7 @@
             "visualize": true
         }
     },
-    {
+        {
         "traffic_light_detect": {
             "model": "best_lights.pt",
             "visualize": true

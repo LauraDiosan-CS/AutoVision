@@ -5,8 +5,8 @@ import numpy as np
 
 
 class HeadingErrorFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo):
-        super().__init__(video_info=video_info)
+    def __init__(self, video_info: VideoInfo, visualize: bool):
+        super().__init__(video_info=video_info, visualize=visualize)
         self.car_position = (int(self.width / 2), self.height)
 
     def process(self, data: PipeData) -> PipeData:
@@ -34,4 +34,4 @@ class HeadingErrorFilter(BaseFilter):
                 heading_error = -heading_error
             data.heading_error = heading_error
 
-        return data
+        return super().process(data)
