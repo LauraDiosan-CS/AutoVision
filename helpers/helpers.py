@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 
 import yaml
+from matplotlib import pyplot as plt
 
 from filters.base_filter import BaseFilter
 from objects.types.pipeline_config_types import FILTER_CLASS_LOOKUP, JSONPipelineConfig, PipelineConfig
@@ -118,3 +119,24 @@ def update_roi_bbox_for_video(video_name, roi_bbox, roi_config_path: str):
         video_data = json.load(file)
 
     raise NotImplementedError("This function is not fully implemented yet")
+
+
+def initialize_config(args):
+    video_rois: VideoRois = get_roi_bbox_for_video(args.video_name, args.roi_config_path)
+    print("Video ROIs:")
+    for roi_type, roi_bbox in video_rois.items():
+        print(f"ROI type: {roi_type}, ROI bbox: {roi_bbox}")
+    video_info = VideoInfo(video_name=args.video_name, height=args.height,
+                           width=args.width, video_rois=video_rois)
+    with open(args.pipeline_config_path, 'r') as f:
+        JSON_pipeline_config: JSONPipelineConfig = json.load(f)
+    parallel_config = parse_pipeline_configuration(JSON_pipeline_config, video_info, args.models_dir_path)
+    return parallel_config, video_info, video_rois
+
+
+def draw_rois_and_wait(frame, video_rois):
+    for video_roi_bbox in video_rois.values():
+        cv2.polylines(frame, np.array([video_roi_bbox]), True, (0, 255, 0), 2)
+    imgArr = np.asarray(frame)
+    plt.imshow(imgArr)
+    plt.show()

@@ -1,6 +1,8 @@
-models_dir_path: 'objects\models\'
-pipeline_config_path: 'objects\config\parallel_pipeline_config.json'
-roi_config_path: 'objects\config\roi.json'
-video_name: 'signs.MP4'
+models_dir_path: 'objects/models/'
 videos_dir: 'videos'
-results_dir: 'results'
+pipeline_config_path: 'objects/config/parallel_pipeline_config.json'
+roi_config_path: 'objects/config/roi.json'
+video_name: 'signs.MP4'
+fps: 30
+width: 1920
+height: 1080
