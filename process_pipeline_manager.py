@@ -34,6 +34,9 @@ class ProcessPipelineManager:
             # Start a separate process for saving frames
             self.save_process = mp.Process(target=self.save_frames, args=(self.save_queue, self.save_enabled, args))
             self.save_process.start()
+        else:  # If saving is not enabled, set the save_queue and save_enabled to None
+            self.save_queue = None
+            self.save_enabled = None
 
     def finish_saving(self):
         with self.save_enabled.get_lock():
@@ -46,10 +49,8 @@ class ProcessPipelineManager:
 
         self.save_process.join()  # Wait for the save process to finish current frame
 
-
-
     @staticmethod
-    def save_frames(save_queue, save_enabled, args):
+    def save_frames(save_queue: mp.Queue, save_enabled, args):
         fourcc = cv2.VideoWriter_fourcc(*"XVID")
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         print(f"\nSaving video to: {os.path.join(args.videos_dir, f'recording_{current_time}.mp4')}")
@@ -67,7 +68,7 @@ class ProcessPipelineManager:
                     if not save_enabled.value:
                         print("Saving process is stopping")
                         break
-                frame = save_queue.get(block=False)
+                frame = save_queue.get(block=True, timeout=2)
                 if isinstance(frame, np.ndarray) and frame.flags.writeable:
                     output_video_writer.write(frame)
                 else:
@@ -86,13 +87,13 @@ class ProcessPipelineManager:
 
         output_video_writer.release()
 
-    def run(self, frame, visualize: False, depth_frame=None):
+    def run(self, frame, depth_frame=None, visualize=False):
         start_time = time.time()
         data: PipeData = PipeData(frame=frame, depth_frame=depth_frame, unfiltered_frame=frame.copy())
         for process, pipe in self.parallel_processes:
             pipe.send(data)
 
-        if self.save_enabled.value:
+        if self.save_enabled is not None and self.save_enabled.value:
             self.save_queue.put(data.unfiltered_frame)
 
         for process, pipe in self.parallel_processes:
@@ -107,7 +108,6 @@ class ProcessPipelineManager:
                                                             traffic_lights=data.traffic_lights,
                                                             pedestrians=data.pedestrians,
                                                             horizontal_lines=data.horizontal_lines)
-        print(data.command)
         if visualize:
             data = self.draw_filter.process(data)
 

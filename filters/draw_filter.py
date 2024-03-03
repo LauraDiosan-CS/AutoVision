@@ -110,9 +110,7 @@ class DrawFilter(BaseFilter):
         return data
     
     def draw_horizontals(self, frame, lines, right_int, center_int):
-
         for line in lines:
-
             cv2.line(frame, line[0], line[1], color=(255, 0, 0), thickness = 2)
             cv2.circle(frame, line[0], radius=3, color=(0,0,255))
             cv2.circle(frame, line[1], radius=3, color=(0,0,255))

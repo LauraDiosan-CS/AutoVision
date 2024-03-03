@@ -22,7 +22,7 @@ def main(args):
 
     parallel_config, video_info, video_rois = initialize_config(args)
 
-    pool_manager = ProcessPipelineManager(parallel_config, video_info)
+    pool_manager = ProcessPipelineManager(parallel_config, video_info, save=True, args=args)
 
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 

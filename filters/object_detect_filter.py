@@ -48,7 +48,6 @@ class SignsDetect(ObjectDetectionFilter):
 
     def pre_process_result(self, yolo_results, data: PipeData) -> PipeData:
         labels = yolo_results.names
-        print('\nresult:', labels)
 
         for yolo_object in yolo_results:
             prediction_id = int(yolo_object.boxes.cls.item())
@@ -69,12 +68,6 @@ class SignsDetect(ObjectDetectionFilter):
             road_object = RoadObject(bbox=bbox_list, label=prediction_label, conf=confidence, distance=distance)
 
             data.traffic_signs.append(road_object)
-
-            print('\ntypes:')
-            print('bbox:', type(bbox_list), bbox_list)
-            print('conf:', type(confidence))
-            print('label:', type(prediction_label))
-            print("ro", road_object)
 
         return data
 
