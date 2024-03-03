@@ -153,18 +153,19 @@ class LaneDetectFilter(BaseFilter):
             y_intersect_center = slope_center * x_intersect_center + y_intercept_center
             y_intersect_right = slope_right * x_intersect_right + y_intercept_right
 
-            intersect_center = (int(x_intersect_center), int(y_intersect_center))
-            intersect_right = (int(x_intersect_right), int(y_intersect_right))
+            if all(not math.isnan(val) for val in [x_intersect_center, y_intersect_center, x_intersect_right, y_intersect_right]):
+                intersect_center = (int(x_intersect_center), int(y_intersect_center))
+                intersect_right = (int(x_intersect_right), int(y_intersect_right))
 
             # print('center:', intersect_center)
             # print('right:', intersect_right)
             
-            right_intersections.append(intersect_right)
-            center_intersections.append(intersect_center)
+                right_intersections.append(intersect_right)
+                center_intersections.append(intersect_center)
 
-            horizontal_line = (intersect_center, intersect_right)
-            #print('aft:', horizontal_line)
-            stop_lines.append(horizontal_line)
+                horizontal_line = (intersect_center, intersect_right)
+                #print('aft:', horizontal_line)
+                stop_lines.append(horizontal_line)
         
         #print('stop lines:', self.stop_lines)
         self.stop_lines = stop_lines
