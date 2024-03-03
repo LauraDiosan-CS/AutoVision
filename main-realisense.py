@@ -12,6 +12,7 @@ import pyrealsense2 as rs
 
 def main(args):
     mp.set_start_method('spawn')
+    mp.set_sharing_strategy('file_system')
 
     pipelineCamera = rs.pipeline()
     realsense_config = rs.config()

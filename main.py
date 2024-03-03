@@ -9,6 +9,7 @@ from process_pipeline_manager import ProcessPipelineManager
 
 def main(args):
     mp.set_start_method('spawn')
+    mp.set_sharing_strategy('file_system')
 
     video_path = str(os.path.join(args.videos_dir, args.video_name))
 
