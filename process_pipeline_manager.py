@@ -2,8 +2,10 @@ import os
 import queue
 import time
 from datetime import datetime
+from enum import Enum
 
 import cv2
+import httpx
 import numpy as np
 import torch.multiprocessing as mp
 from filters.base_filter import BaseFilter
@@ -90,6 +92,7 @@ class ProcessPipelineManager:
     def run(self, frame, depth_frame=None, visualize=False):
         start_time = time.time()
         data: PipeData = PipeData(frame=frame, depth_frame=depth_frame, unfiltered_frame=frame.copy())
+
         for process, pipe in self.parallel_processes:
             pipe.send(data)
 
@@ -108,6 +111,18 @@ class ProcessPipelineManager:
                                                             traffic_lights=data.traffic_lights,
                                                             pedestrians=data.pedestrians,
                                                             horizontal_lines=data.horizontal_lines)
+
+        try:
+            json = {"action": data.command.value, "heading_error_degrees": data.heading_error, "observed_acceleration": 0}
+            start_time = time.time()
+            r = httpx.post(f'http://car@car:8080/control', json=json)
+            end_time = time.time()
+            print(f"Httpx execution time: {end_time - start_time} seconds")
+            if r.status_code == 422:
+                print(f"Error sending command to the car: {r.text}")
+        except httpx.ConnectTimeout as e:
+            print(f"Error connecting to the car: {e}")
+
         if visualize:
             data = self.draw_filter.process(data)
 

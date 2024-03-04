@@ -27,7 +27,7 @@ class DrawFilter(BaseFilter):
         self.draw_command(frame, data.command)
 
         # drawing horizontal lines
-        data = self.filter(data)
+        # data = self.filter(data)
         if data.road_markings is not None and len(data.road_markings.stop_lines):
             self.draw_horizontals(frame, data.road_markings.stop_lines, data.road_markings.right_int, data.road_markings.center_int)
 

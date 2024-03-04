@@ -37,7 +37,7 @@ def main(args):
             continue
 
         data = pool_manager.run(frame, visualize=True)
-
+        data.processed_frames = None
         if data.processed_frames is not None and len(data.processed_frames) > 0:
             imgStack = stack_images_v2(1, data.processed_frames)
             cv2.imshow('CarVision', imgStack)
