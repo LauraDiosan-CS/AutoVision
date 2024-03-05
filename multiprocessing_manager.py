@@ -1,7 +1,8 @@
 import os
 import time
 from datetime import datetime
-import httpx
+import urllib3
+import json
 import torch.multiprocessing as mp
 
 from behaviour_planner import BehaviourPlanner
@@ -20,6 +21,7 @@ class MultiProcessingManager:
         self.behaviour_planner = BehaviourPlanner()
         self.save_input = save_input
         self.save_output = save_output
+        self.http_pool = urllib3.PoolManager()
         self.http_connection_failed_count = 0
         self.save_queue = None
         self.save_process = None
@@ -89,11 +91,9 @@ class MultiProcessingManager:
                              "heading_error_degrees": data.heading_error,
                              "observed_acceleration": 0}
                 start_time = time.time()
-                r = httpx.post(Config.command_url, json=json_data)
+                r = self.http_pool.request('POST', Config.command_url, headers={'Content-Type': 'application/json'}, body=json.dumps(json_data))
                 end_time = time.time()
-                print(f"Httpx success execution time: {end_time - start_time} seconds")
-                if r.status_code == 422:
-                    print(f"Error sending command to the car: {r.text}")
+                print(f"Http success execution time: {end_time - start_time} seconds")
             except Exception as e:
                 print(f"Error connecting to the car: {e}")
                 self.http_connection_failed_count += 1
