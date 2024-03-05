@@ -1,30 +1,17 @@
 import json
 import os
+import queue
+
 import cv2
 import numpy as np
-
-import yaml
 from matplotlib import pyplot as plt
+import torch.multiprocessing as mp
 
+from config import Config
 from filters.base_filter import BaseFilter
 from objects.types.pipeline_config_types import FILTER_CLASS_LOOKUP, JSONPipelineConfig, PipelineConfig
+from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoInfo, VideoRois
-
-
-def parse_config(parser, config_file_path: str):
-    with open(config_file_path, 'r') as config:
-        data = yaml.safe_load(config)
-
-        for arg in data.keys():
-            # Check if the value is a path before using os.path.join
-            if os.path.sep in str(data[arg]):
-                data[arg] = os.path.join(os.path.abspath(""), data[arg])
-            print(f'--{arg} = {data[arg]}')
-            parser.add_argument(f'--{arg}', default=data[arg])
-        args = parser.parse_args()
-
-    config.close()
-    return args
 
 
 def parse_pipeline_configuration(JSON_pipeline_config: JSONPipelineConfig, video_info: VideoInfo,
@@ -121,16 +108,16 @@ def update_roi_bbox_for_video(video_name, roi_bbox, roi_config_path: str):
     raise NotImplementedError("This function is not fully implemented yet")
 
 
-def initialize_config(args):
-    video_rois: VideoRois = get_roi_bbox_for_video(args.video_name, args.roi_config_path)
-    print("Video ROIs:")
+def initialize_config():
+    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.roi_config_path)
+    print("\nVideo ROIs:")
     for roi_type, roi_bbox in video_rois.items():
         print(f"ROI type: {roi_type}, ROI bbox: {roi_bbox}")
-    video_info = VideoInfo(video_name=args.video_name, height=args.height,
-                           width=args.width, video_rois=video_rois)
-    with open(args.pipeline_config_path, 'r') as f:
+    video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
+                           width=Config.width, video_rois=video_rois)
+    with open(Config.pipeline_config_path, 'r') as f:
         JSON_pipeline_config: JSONPipelineConfig = json.load(f)
-    parallel_config = parse_pipeline_configuration(JSON_pipeline_config, video_info, args.models_dir_path)
+    parallel_config = parse_pipeline_configuration(JSON_pipeline_config, video_info, Config.models_dir_path)
     return parallel_config, video_info, video_rois
 
 
@@ -140,3 +127,39 @@ def draw_rois_and_wait(frame, video_rois):
     imgArr = np.asarray(frame)
     plt.imshow(imgArr)
     plt.show()
+
+
+def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInfo):
+    print(f"\nSaving video to: {save_info.video_path}\n")
+
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    output_video_writer = cv2.VideoWriter(
+        save_info.video_path,
+        fourcc, Config.fps,
+        (Config.width, Config.height)
+    )
+
+    while True:
+        try:
+            with save_enabled.get_lock():
+                if not save_enabled.value:
+                    print("Saving process is stopping")
+                    break
+            frame = save_queue.get(block=True, timeout=2)
+            if isinstance(frame, np.ndarray) and frame.flags.writeable:
+                output_video_writer.write(frame)
+            else:
+                print(f"Invalid frame type for saving: {type(frame)}")
+        except queue.Empty:
+            pass
+
+    # Get all remaining frames from the queue and save them
+    while not save_queue.empty():
+        print(f"Saving remaining frames, frames left:{save_queue.qsize()}")
+        frame = save_queue.get()
+        if frame is None:
+            print("save process received None")
+            continue
+        output_video_writer.write(frame)
+
+    output_video_writer.release()

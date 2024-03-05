@@ -27,6 +27,10 @@ class BaseFilter(ABC):
 
     @abstractmethod
     def process(self, data: PipeData) -> PipeData:
+        """
+        Abstract method that should be implemented by all filters
+        :param data: PipeData object
+        """
         # process the data
 
         if self.visualize:

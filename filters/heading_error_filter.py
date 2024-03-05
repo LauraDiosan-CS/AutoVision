@@ -1,4 +1,5 @@
 from objects.pipe_data import PipeData
+from objects.types.line_segment import LineSegment
 from objects.types.video_info import VideoInfo
 from filters.base_filter import BaseFilter
 import numpy as np
@@ -12,11 +13,11 @@ class HeadingErrorFilter(BaseFilter):
     def process(self, data: PipeData) -> PipeData:
         if data.road_markings is None:
             return data
-        center_line = data.road_markings.center_line
-        right_line = data.road_markings.right_line
+        center_line: LineSegment = data.road_markings.center_line
+        right_line: LineSegment = data.road_markings.right_line
         if center_line and right_line:
-            upper_lane_center = ((center_line.upper_point.x + right_line.upper_point.x) // 2,
-                                 (center_line.upper_point.y + right_line.upper_point.y) // 2)
+            upper_lane_center = ((center_line.upper_x + right_line.upper_x) // 2,
+                                 (center_line.upper_y + right_line.upper_y) // 2)
 
             # calculating heading_error
             direction_vector = np.array(upper_lane_center) - np.array(self.car_position)
