@@ -7,10 +7,10 @@ class Config:
     video_name = 'qualifiers_2.mp4'
     visualize_only_final = False
     save_video = True
-    fps = 30
+    fps = 15
     width = 1920
     height = 1080
-    command_url = 'http://car@car:8080/control'
+    command_url = 'http://10.0.0.2:8080/control'
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")

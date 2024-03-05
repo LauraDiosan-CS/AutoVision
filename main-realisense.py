@@ -38,7 +38,7 @@ def main():
         color_frame = np.asanyarray(color_frame.get_data())
         depth_frame = np.asanyarray(depth_frame.get_data())
 
-        data = pool_manager.process_frame(color_frame, depth_frame)
+        data = pool_manager.process_frame(color_frame, depth_frame, apply_draw_filter=True)
 
         if data.processed_frames is not None and len(data.processed_frames) > 0:
             imgStack = stack_images_v2(1, data.processed_frames)
