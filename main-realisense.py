@@ -10,6 +10,27 @@ from multiprocessing_manager import MultiProcessingManager
 import pyrealsense2 as rs
 
 
+def camera_process(queue):
+    pipelineCamera = rs.pipeline()
+    realsense_config = rs.config()
+    realsense_config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, Config.fps)
+    realsense_config.enable_stream(rs.stream.color, Config.width, Config.height, rs.format.bgr8, Config.fps)
+    pipelineCamera.start(realsense_config)
+
+    while True:
+        frames = pipelineCamera.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        depth_frame = frames.get_depth_frame()
+
+        if not color_frame and not depth_frame:
+            print("!!! No frames received from camera !!!")
+            continue
+
+        color_frame = np.asanyarray(color_frame.get_data())
+        depth_frame = np.asanyarray(depth_frame.get_data())
+
+        queue.put((color_frame, depth_frame))
+
 def main():
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')

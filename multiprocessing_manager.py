@@ -75,7 +75,7 @@ class MultiProcessingManager:
             horizontal_lines=data.horizontal_lines
         )
 
-        self.handle_http_communication(data)
+        # self.handle_http_communication(data)
 
         if self.save_input and self.save_enabled is not None and self.save_enabled.value:
             self.save_queue.put(data.unfiltered_frame)

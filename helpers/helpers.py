@@ -1,6 +1,7 @@
 import json
 import os
 import queue
+import time
 
 import cv2
 import numpy as np
@@ -12,6 +13,58 @@ from filters.base_filter import BaseFilter
 from objects.types.pipeline_config_types import FILTER_CLASS_LOOKUP, JSONPipelineConfig, PipelineConfig
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoInfo, VideoRois
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def Timer(description, min_print_time=0.0):
+    """
+    Context manager to measure and print the execution time of a code block.
+
+    Parameters:
+    - description (str): A description of the code block being timed.
+    - min_print_time (float): The minimum elapsed time threshold in seconds
+                              for printing the timing information. Defaults to 0.0.
+
+    Usage:
+    ```
+    with TimedExecution("Code block"):
+        # Code block to be timed
+    ```
+    """
+    start_time = time.time()
+    yield
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    if elapsed_time > min_print_time:
+        print(f"{description}: {elapsed_time} seconds")
+
+
+@contextmanager
+def FixedTimeControl(execution_time, print_if_over):
+    """
+    Context manager to control the execution time within a fixed limit.
+
+    Parameters:
+    - execution_time (float): The maximum allowed execution time in seconds.
+    - print_if_over (bool): Flag to print a message if execution time exceeds the limit.
+
+    Usage:
+    ```
+    with FixedTimeControl(10.0, True):
+        # Code block to be executed within the time limit
+    ```
+    """
+    start_time = time.time()
+    yield
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    if elapsed_time > execution_time:
+        if print_if_over:
+            print(f"Execution time {elapsed_time} [s] exceeds "
+                  f"the limit of {execution_time} [s]")
+        time.sleep(execution_time - elapsed_time)
 
 
 def parse_pipeline_configuration(JSON_pipeline_config: JSONPipelineConfig, video_info: VideoInfo,
