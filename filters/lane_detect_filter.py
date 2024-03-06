@@ -22,6 +22,31 @@ def filter_lane_by_type(hough_line_segments: list[LineSegment], frame_width: int
 
     return left_lane_lines, right_lane_lines, horizontal_lines
 
+def get_white_lines(frame, lines, threshold=170, num_points=50):
+    white_lines = []
+
+    for line in lines:
+        x1, y1, x2, y2 = line
+
+        # Generate points along the line
+        x_values = np.linspace(x1, x2, num=num_points, dtype=int)
+        y_values = np.linspace(y1, y2, num=num_points, dtype=int)
+
+        white_points = 0
+
+        # Check each point along the line
+        for x, y in zip(x_values, y_values):
+            # Ensure x and y are integers for indexing
+            x, y = int(x), int(y)
+            if 0 <= x < frame.shape[1] and 0 <= y < frame.shape[0]:  # Check if the point is within the frame
+                if all(i >= threshold for i in frame[y, x]):  # Check if the point is white
+                    white_points += 1
+
+        # If most of the sampled points are white, consider the line as on a white part
+        if white_points / num_points > 0.5:
+            white_lines.append(line)
+
+    return white_lines
 
 class LaneDetectFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo, visualize: bool):
@@ -32,7 +57,8 @@ class LaneDetectFilter(BaseFilter):
 
         if hough_lines is not None:
             hough_line_segments = [LineSegment(*line[0]) for line in hough_lines]
-            left_lane_lines, right_lane_lines, horizontal_lines = filter_lane_by_type(hough_line_segments, self.width)
+            lines = get_white_lines(data.unfiltered_frame, hough_line_segments)
+            left_lane_lines, right_lane_lines, horizontal_lines = filter_lane_by_type(lines, self.width)
 
             left_line_segment = None
             right_line_segment = None
