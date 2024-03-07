@@ -4,9 +4,11 @@ class Config:
     recordings_dir = 'videos/recordings'
     pipeline_config_path = 'objects/config/lane_detect_config.json'
     roi_config_path = 'objects/config/roi.json'
-    video_name = 'qual3cut.mp4'
+    video_name = 'lane_on_carpet.mp4'
     visualize_only_final = False
     save_video = True
+    http_connection_failed_limit = 0
+    http_timeout = 5
     fps = 15
     width = 1920
     height = 1080

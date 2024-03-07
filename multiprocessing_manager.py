@@ -85,13 +85,16 @@ class MultiProcessingManager:
         return data
 
     def handle_http_communication(self, data):
-        if Config.command_url and self.http_connection_failed_count < 3:
+        if Config.command_url and self.http_connection_failed_count < Config.http_connection_failed_limit:
             try:
                 json_data = {"action": data.command.value,
                              "heading_error_degrees": data.heading_error,
                              "observed_acceleration": 0}
                 start_time = time.time()
-                r = self.http_pool.request('POST', Config.command_url, headers={'Content-Type': 'application/json'}, body=json.dumps(json_data))
+                r = self.http_pool.request('POST', Config.command_url,
+                                           headers={'Content-Type': 'application/json'},
+                                           body=json.dumps(json_data),
+                                           timeout=Config.http_timeout)
                 end_time = time.time()
                 print(f"Http success execution time: {end_time - start_time} seconds")
             except Exception as e:
