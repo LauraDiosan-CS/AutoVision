@@ -113,7 +113,6 @@ class LineSegment:
         Returns:
         - The coordinates of the intersection point.
         """
-        print(f"Computing intersection between {self} and {other}")
         x1, y1 = self.lower_x, self.lower_y
         x2, y2 = self.upper_x, self.upper_y
         x3, y3 = other.lower_x, other.lower_y

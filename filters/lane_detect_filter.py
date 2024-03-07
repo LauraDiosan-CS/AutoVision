@@ -61,6 +61,43 @@ def draw_lines(frame, line_segments_with_colors):
     return frame
 
 
+def visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
+                          other_left_lane_lines, other_right_lane_lines, right_line_segment, white_horizontal_lines,
+                          white_horizontals_outside_of_lane, white_left_lane_lines, white_right_lane_lines):
+    color_mapping_bgr = {
+        "cyan": (255, 255, 0),
+        "dark_blue": (175, 0, 0),
+        "light_blue": (173, 216, 230),
+        "violet": (238, 130, 238),
+        "lime": (0, 255, 0),
+        "dark_green": (0, 100, 0),
+        "light_green": (144, 238, 144),
+        "yellow": (255, 255, 0),
+        "red": (0, 0, 255),
+        "pink": (255, 192, 203),
+        "orange": (0, 165, 255)
+    }
+    frame = draw_lines(data.frame.copy(), line_segments_with_colors={
+        color_mapping_bgr["dark_blue"]: (other_left_lane_lines, 1),
+        color_mapping_bgr["dark_green"]: (other_right_lane_lines, 1),
+        color_mapping_bgr["orange"]: (other_horizontal_lines, 1)
+    })
+    data.processed_frames.append(frame)
+    frame = draw_lines(data.frame.copy(), line_segments_with_colors={
+        color_mapping_bgr["cyan"]: (white_left_lane_lines, 2),
+        color_mapping_bgr["light_green"]: (white_right_lane_lines, 2),
+        color_mapping_bgr["pink"]: (white_horizontal_lines, 1)
+    })
+    data.processed_frames.append(frame)
+    frame = draw_lines(data.frame.copy(), line_segments_with_colors={
+        color_mapping_bgr["cyan"]: ([left_line_segment], 5) if left_line_segment else ([], 5),
+        color_mapping_bgr["lime"]: ([right_line_segment], 5) if right_line_segment else ([], 5),
+        color_mapping_bgr["red"]: (lane_white_horizontal_lines, 5),
+        color_mapping_bgr["violet"]: (white_horizontals_outside_of_lane, 2),
+    })
+    data.processed_frames.append(frame)
+
+
 class LaneDetectFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo, visualize: bool):
         super().__init__(video_info=video_info, visualize=visualize)
@@ -69,92 +106,60 @@ class LaneDetectFilter(BaseFilter):
 
     def process(self, data: PipeData) -> PipeData:
         hough_lines = self.apply_houghLines(data.frame)
-        if hough_lines is not None:
-            hough_line_segments = []
-            for i in range(len(hough_lines)):
-                x1, y1, x2, y2 = hough_lines[i][0]
-                print(x1, y1, x2, y2)
-                if y1 < y2:  # point 1 is the upper point
-                    hough_line_segments.append(LineSegment(x2, y2, x1, y1))
-                else:
-                    hough_line_segments.append(LineSegment(x1, y1, x2, y2))
 
-            white_line_segments, other_line_segments = filer_for_white_lines(data.unfiltered_frame, hough_line_segments)
-            white_left_lane_lines, white_right_lane_lines, white_horizontal_lines = filter_lines_by_type(
-                white_line_segments,
-                self.width
-            )
-            other_left_lane_lines, other_right_lane_lines, other_horizontal_lines = filter_lines_by_type(
-                other_line_segments,
-                self.width
-            )
-            left_line_segment = None
-            right_line_segment = None
+        if hough_lines is None:
+            return super().process(data)
 
-            if len(white_left_lane_lines) > 0:
-                left_line_segment = max(white_left_lane_lines, key=lambda l: l.compute_vertical_distance())
+        hough_line_segments = []
+        for i in range(len(hough_lines)):
+            x1, y1, x2, y2 = hough_lines[i][0]
+            if y1 < y2:  # point 1 is the upper point
+                hough_line_segments.append(LineSegment(x2, y2, x1, y1))
+            else:
+                hough_line_segments.append(LineSegment(x1, y1, x2, y2))
 
-            if len(white_right_lane_lines) > 0:
-                right_line_segment = max(white_right_lane_lines, key=lambda l: l.compute_euclidean_distance())
+        white_line_segments, other_line_segments = filer_for_white_lines(data.unfiltered_frame, hough_line_segments)
+        white_left_lane_lines, white_right_lane_lines, white_horizontal_lines = filter_lines_by_type(
+            white_line_segments,
+            self.width
+        )
+        other_left_lane_lines, other_right_lane_lines, other_horizontal_lines = filter_lines_by_type(
+            other_line_segments,
+            self.width
+        )
 
-            if left_line_segment:
-                left_line_segment = self.extend_line(left_line_segment)
-            if right_line_segment:
-                right_line_segment = self.extend_line(right_line_segment)
+        left_line_segment = None
+        right_line_segment = None
+        if len(white_left_lane_lines) > 0:
+            left_line_segment = max(white_left_lane_lines, key=lambda l: l.compute_vertical_distance())
+            left_line_segment = self.extend_line(left_line_segment)
 
-            data.road_markings = RoadMarkings(left_line=None,
-                                              center_line=left_line_segment,
-                                              right_line=right_line_segment,
-                                              stop_lines=None,
-                                              horizontals=None,
-                                              right_int=None,
-                                              center_int=None
-                                              )
-            lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
-                white_horizontal_lines,
-                left_line_segment,
-                right_line_segment)
+        if len(white_right_lane_lines) > 0:
+            right_line_segment = max(white_right_lane_lines, key=lambda l: l.compute_euclidean_distance())
+            right_line_segment = self.extend_line(right_line_segment)
 
-            if left_line_segment and right_line_segment:
-                data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
-            if self.visualize:
-                color_mapping_bgr = {
-                    "cyan": (255, 255, 0),
-                    "dark_blue": (175, 0, 0),
-                    "light_blue": (173, 216, 230),
-                    "violet": (238, 130, 238),
-                    "lime": (0, 255, 0),
-                    "dark_green": (0, 100, 0),
-                    "light_green": (144, 238, 144),
-                    "yellow": (255, 255, 0),
-                    "red": (0, 0, 255),
-                    "pink": (255, 192, 203),
-                    "orange": (0, 165, 255)
-                }
+        data.road_markings = RoadMarkings(left_line=None,
+                                          center_line=left_line_segment,
+                                          right_line=right_line_segment,
+                                          stop_lines=None,
+                                          horizontals=None,
+                                          right_int=None,
+                                          center_int=None
+                                          )
 
-                frame = draw_lines(data.frame.copy(), line_segments_with_colors={
-                    color_mapping_bgr["dark_blue"]: (other_left_lane_lines, 1),
-                    color_mapping_bgr["dark_green"]: (other_right_lane_lines, 1),
-                    color_mapping_bgr["orange"]: (other_horizontal_lines, 1)
-                })
-                data.processed_frames.append(frame)
+        lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
+            white_horizontal_lines,
+            left_line_segment,
+            right_line_segment)
 
-                frame = draw_lines(data.frame.copy(), line_segments_with_colors={
-                    color_mapping_bgr["cyan"]: (white_left_lane_lines, 2),
-                    color_mapping_bgr["light_green"]: (white_right_lane_lines, 2),
-                    color_mapping_bgr["pink"]: (white_horizontal_lines, 1)
-                })
-                data.processed_frames.append(frame)
-
-                frame = draw_lines(data.frame.copy(), line_segments_with_colors={
-                    color_mapping_bgr["cyan"]: ([left_line_segment], 5) if left_line_segment else ([], 5),
-                    color_mapping_bgr["lime"]: ([right_line_segment], 5) if right_line_segment else ([], 5),
-                    color_mapping_bgr["red"]: (lane_white_horizontal_lines, 5),
-                    color_mapping_bgr["violet"]: (white_horizontals_outside_of_lane, 2),
-                })
-
-                data.processed_frames.append(frame)
-                return data  # skip visualization from base filter
+        if left_line_segment and right_line_segment:
+            data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
+        if self.visualize:
+            visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
+                                  other_left_lane_lines, other_right_lane_lines, right_line_segment,
+                                  white_horizontal_lines, white_horizontals_outside_of_lane, white_left_lane_lines,
+                                  white_right_lane_lines)
+            return data  # skip visualization from base filter
 
         return super().process(data)
 
@@ -175,19 +180,22 @@ class LaneDetectFilter(BaseFilter):
                 #     print("Horizontal line is above the lane")
                 #     horizontals_outside_of_lane.append(horiz_line_segment)
                 #     continue
-                # discretized_points: list[tuple[int, int]] = horiz_line_segment.discretize(num_points)
-                # for x, y in discretized_points:
-                upper_is_left = horiz_line_segment.upper_x < horiz_line_segment.lower_x
-                right_endpoint = horiz_line_segment.lower_point if upper_is_left else horiz_line_segment.upper_point
-                left_endpoint = horiz_line_segment.upper_point if upper_is_left else horiz_line_segment.lower_point
 
-                left_intersect = left_line.compute_interesting_point(horiz_line_segment)
-                right_intersect = right_line.compute_interesting_point(horiz_line_segment)
-                if left_intersect is None or right_intersect is None:
+                if horiz_line_segment.upper_x < horiz_line_segment.lower_x:
+                    left_endpoint = horiz_line_segment.upper_point
+                    right_endpoint = horiz_line_segment.lower_point
+                else:
+                    left_endpoint = horiz_line_segment.lower_point
+                    right_endpoint = horiz_line_segment.upper_point
+
+                left_intersect_point = left_line.compute_interesting_point(horiz_line_segment)
+                right_intersect_point = right_line.compute_interesting_point(horiz_line_segment)
+
+                if left_intersect_point is None or right_intersect_point is None:
                     raise ValueError("Somehow vertical and horizontals are parallel")
 
-                left_distance = euclidean_distance(left_intersect, left_endpoint)
-                right_distance = euclidean_distance(right_intersect, right_endpoint)
+                left_distance = euclidean_distance(left_intersect_point, left_endpoint)
+                right_distance = euclidean_distance(right_intersect_point, right_endpoint)
 
                 if (left_distance + right_distance) / horiz_line_segment.compute_euclidean_distance() < 0.2:
                     filtered_horizontals.append(horiz_line_segment)

@@ -10,8 +10,8 @@ class Config:
     http_connection_failed_limit = 0
     http_timeout = 5
     fps = 15
-    width = 1920
-    height = 1080
+    width = 1280
+    height = 720
     command_url = 'http://10.0.0.2:8080/control'
 
     def __init__(self):
