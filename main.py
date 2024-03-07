@@ -9,38 +9,14 @@ from helpers.helpers import stack_images_v2, initialize_config, draw_rois_and_wa
 from multiprocessing_manager import MultiProcessingManager
 
 
-
-def camera_process(queue):
-    video_path = str(os.path.join(Config.videos_dir, Config.video_name))
-    cap = cv2.VideoCapture(video_path)
-    Config.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    Config.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    while cap.isOpened():
-        with Timer("Camera Process Loop", min_print_time=0.01):
-            ret, frame = cap.read()
-            if ret:
-                if not queue.full():
-                    queue.put(frame)
-            else:
-                break
-
-    cap.release()
-
-
 def main():
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
 
-    queue = mp.Queue()
-
-    camera_proc = mp.Process(target=camera_process, args=(queue,))
-    camera_proc.start()
-
     parallel_config, video_info, video_rois = initialize_config()
 
     mp_manager = MultiProcessingManager(parallel_config, video_info, save_output=True)
-    #TODO move save input into new process maybe move process into manager
+    # TODO move save input into new process maybe move process into manager
 
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 

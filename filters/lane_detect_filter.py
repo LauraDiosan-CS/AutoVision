@@ -80,7 +80,7 @@ class LaneDetectFilter(BaseFilter):
     # -----------------------------------------------
     # Processing Methods
     @staticmethod
-    def apply_houghLines(frame, rho=1, theta=np.pi / 180, threshold=50, min_line_length=100, max_line_gap=550):
+    def apply_houghLines(frame, rho=1, theta=np.pi / 180, threshold=50, min_line_length=300, max_line_gap=200):
         return cv2.HoughLinesP(frame, rho, theta, threshold, np.array([]), minLineLength=min_line_length,
                                maxLineGap=max_line_gap)
 

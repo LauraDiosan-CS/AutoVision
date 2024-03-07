@@ -1,43 +1,85 @@
 import os
-import time
 from datetime import datetime
+
+import cv2
 import urllib3
-import json
 import torch.multiprocessing as mp
 
 from behaviour_planner import BehaviourPlanner
 from config import Config
+from controller import Controller
 from filters.base_filter import BaseFilter
-from helpers.helpers import save_frames
+from filters.draw_filter import DrawFilter
+from helpers.helpers import save_frames, Timer
 from objects.pipe_data import PipeData
+from objects.sequential_filter_process import SequentialFilterProcess
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoInfo
-from process_pipeline_manager import ProcessPipelineManager
+
+
+def camera_process(in_queues: list[mp.Queue]):
+    video_path = str(os.path.join(Config.videos_dir, Config.video_name))
+    cap = cv2.VideoCapture(video_path)
+    Config.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    Config.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    while cap.isOpened():
+        with Timer("Camera Process Loop", min_print_time=0.01):
+            ret, frame = cap.read()
+            if ret:
+                data: PipeData = PipeData(frame=frame,
+                                          depth_frame=None,
+                                          unfiltered_frame=frame.copy())
+                for queue in in_queues:
+                    queue.put(data)
+            else:
+                break
+
+    cap.release()
 
 
 class MultiProcessingManager:
     def __init__(self, parallel_config: list[list[BaseFilter]],
                  video_info: VideoInfo, save_input=False, save_output=False):
-        self.behaviour_planner = BehaviourPlanner()
         self.save_input = save_input
         self.save_output = save_output
-        self.http_pool = urllib3.PoolManager()
         self.http_connection_failed_count = 0
         self.save_queue = None
         self.save_process = None
         self.save_enabled = None
 
-        self.process_pipeline_manager = ProcessPipelineManager(
-            parallel_config=parallel_config,
-            video_info=video_info
-        )
+        in_queues = [mp.Queue() for _ in range(len(parallel_config))]
+        self.output_queue = mp.Queue()
 
-        if save_input or save_output:
+        self.camera_proc = mp.Process(target=camera_process, args=in_queues)
+
+        self.parallel_processes = []
+        for config, in_queues in zip(parallel_config, in_queues):
+            process = SequentialFilterProcess(config, in_queues, self.output_queue)
+            process.start()
+            self.parallel_processes.append(process)
+
+        self.draw_filter = DrawFilter(video_info=video_info)
+
+        self.controller_pipe, controller_pipe_child = mp.Pipe()
+        self.controller = Controller(controller_pipe_child)
+
+    def initialize(self):
+        self.camera_proc.start()
+
+        if self.save_input or self.save_output:
             self.initialize_saving()
+
+        while True:
+            data = self.output_queue.get()
+
+            self.controller_pipe.send(data)
+
+            if True:
+                data = self.draw_filter.process(data)
 
     def initialize_saving(self):
         # Start a separate process for saving frames
-
         self.save_queue = mp.Queue()
         self.save_enabled = mp.Value('b', True)  # Shared boolean value for enabling saving
 
@@ -62,20 +104,6 @@ class MultiProcessingManager:
                                   depth_frame=depth_frame,
                                   unfiltered_frame=frame.copy())
 
-        data = self.process_pipeline_manager.process_frame(
-            data=data,
-            apply_draw_filter=apply_draw_filter or self.save_output  # Apply draw filter if saving is enabled
-        )
-
-        # Perform behavior planning based on processed data
-        data.command = self.behaviour_planner.run_iteration(
-            traffic_signs=data.traffic_signs,
-            traffic_lights=data.traffic_lights,
-            pedestrians=data.pedestrians,
-            horizontal_lines=data.horizontal_lines
-        )
-
-        # self.handle_http_communication(data)
 
         if self.save_input and self.save_enabled is not None and self.save_enabled.value:
             self.save_queue.put(data.unfiltered_frame)
@@ -84,19 +112,6 @@ class MultiProcessingManager:
 
         return data
 
-    def handle_http_communication(self, data):
-        if Config.command_url and self.http_connection_failed_count < 3:
-            try:
-                json_data = {"action": data.command.value,
-                             "heading_error_degrees": data.heading_error,
-                             "observed_acceleration": 0}
-                start_time = time.time()
-                r = self.http_pool.request('POST', Config.command_url, headers={'Content-Type': 'application/json'}, body=json.dumps(json_data))
-                end_time = time.time()
-                print(f"Http success execution time: {end_time - start_time} seconds")
-            except Exception as e:
-                print(f"Error connecting to the car: {e}")
-                self.http_connection_failed_count += 1
 
     def finish_saving(self):
         with self.save_enabled.get_lock():
