@@ -7,6 +7,7 @@ class PipeData:
         self.depth_frame = depth_frame
         self.road_markings = None
         self.heading_error = None
+        self.lateral_offset = None
         self.unfiltered_frame = unfiltered_frame
         self.traffic_signs: list[RoadObject] = []
         self.traffic_lights: list[RoadObject] = []
@@ -34,6 +35,8 @@ class PipeData:
             self.road_markings = other.road_markings
         if other.heading_error is not None:
             self.heading_error = other.heading_error
+        if other.lateral_offset is not None:
+            self.lateral_offset = other.lateral_offset
         if other.command != "":
             self.command = other.command
         self.traffic_signs.extend(other.traffic_signs)

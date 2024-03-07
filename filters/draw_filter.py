@@ -88,7 +88,9 @@ class DrawFilter(BaseFilter):
                 self.draw_actual_path(frame, self.car_position, upper_lane_center)
 
                 if data.heading_error is not None:
-                    self.put_text(frame, f'Heading Error: {data.heading_error:.2f} degrees')
+                    self.put_text(frame, f'Heading Error: {data.heading_error: .2f} degrees')
+                if data.lateral_offset is not None:
+                    self.put_text(frame, f'Lateral Offset: {data.lateral_offset: .2f}', position=(0, 50))
         else:
             self.put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
 
