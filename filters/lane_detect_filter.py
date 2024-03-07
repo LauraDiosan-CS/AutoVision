@@ -23,7 +23,7 @@ def filter_lines_by_type(hough_line_segments: list[LineSegment], frame_width: in
     return left_lane_lines, right_lane_lines, horizontal_lines
 
 
-def filer_for_white_lines(color_frame, line_segments, threshold=170, num_points=50) -> tuple[
+def filer_for_white_lines(color_frame, line_segments, threshold=140, num_points=50) -> tuple[
     list[LineSegment], list[LineSegment]]:
     white_lines = []
     other_lines = []
@@ -102,7 +102,7 @@ class LaneDetectFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo, visualize: bool):
         super().__init__(video_info=video_info, visualize=visualize)
 
-        self.max_lane_height = int(video_info.height * 0.5)
+        self.max_lane_height = self.height // 2
 
     def process(self, data: PipeData) -> PipeData:
         hough_lines = self.apply_houghLines(data.frame)
@@ -138,19 +138,19 @@ class LaneDetectFilter(BaseFilter):
             right_line_segment = max(white_right_lane_lines, key=lambda l: l.compute_euclidean_distance())
             right_line_segment = self.extend_line(right_line_segment)
 
-        data.road_markings = RoadMarkings(left_line=None,
-                                          center_line=left_line_segment,
-                                          right_line=right_line_segment,
-                                          stop_lines=None,
-                                          horizontals=None,
-                                          right_int=None,
-                                          center_int=None
-                                          )
-
         lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
             white_horizontal_lines,
             left_line_segment,
             right_line_segment)
+
+        data.road_markings = RoadMarkings(left_line=None,
+                                          center_line=left_line_segment,
+                                          right_line=right_line_segment,
+                                          stop_lines=lane_white_horizontal_lines,
+                                          horizontals=None,
+                                          right_int=None,
+                                          center_int=None
+                                          )
 
         if left_line_segment and right_line_segment:
             data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
@@ -176,10 +176,10 @@ class LaneDetectFilter(BaseFilter):
         horizontals_outside_of_lane = []
         for horiz_line_segment in horizontal_line_segments:
             if left_line and right_line:
-                # if self.max_lane_height < horiz_line_segment.upper_y:  # if the line is above the lane
-                #     print("Horizontal line is above the lane")
-                #     horizontals_outside_of_lane.append(horiz_line_segment)
-                #     continue
+                if horiz_line_segment.lower_y < self.max_lane_height:  # if the line is above the lane
+                    print(f"Horizontal line is above the lane {horiz_line_segment.lower_y} > {self.max_lane_height}")
+                    horizontals_outside_of_lane.append(horiz_line_segment)
+                    continue
 
                 if horiz_line_segment.upper_x < horiz_line_segment.lower_x:
                     left_endpoint = horiz_line_segment.upper_point
@@ -197,7 +197,7 @@ class LaneDetectFilter(BaseFilter):
                 left_distance = euclidean_distance(left_intersect_point, left_endpoint)
                 right_distance = euclidean_distance(right_intersect_point, right_endpoint)
 
-                if (left_distance + right_distance) / horiz_line_segment.compute_euclidean_distance() < 0.2:
+                if (left_distance + right_distance) / horiz_line_segment.compute_euclidean_distance() < 0.4:
                     filtered_horizontals.append(horiz_line_segment)
                     continue
 

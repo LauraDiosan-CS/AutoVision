@@ -46,8 +46,16 @@ class DrawFilter(BaseFilter):
 
         # drawing horizontal lines
         # data = self.filter(data)
-        # if data.road_markings is not None and len(data.road_markings.stop_lines):
-        #     self.draw_horizontals(frame, data.road_markings.stop_lines, data.road_markings.right_int, data.road_markings.center_int)
+        if data.road_markings is not None and len(data.road_markings.stop_lines):
+            stop_lines: list[LineSegment] = data.road_markings.stop_lines
+            for line in stop_lines:
+                cv2.line(frame,
+                         (line.upper_x, line.upper_y),
+                         (line.lower_x, line.lower_y),
+                         color=(0, 0, 255), thickness=3)
+
+        # draw a horizontal ine at a specific height
+        cv2.line(frame, (0, self.height // 2), (frame.shape[1], self.height // 2), color=(255, 255, 255), thickness=3)
 
         # drawing signs info
         signs = []

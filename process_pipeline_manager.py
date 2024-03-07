@@ -35,6 +35,7 @@ class ProcessPipelineManager:
 
         print(f"Parallel execution time: {end_time - start_time} seconds")
 
+
         if apply_draw_filter:
             data = self.draw_filter.process(data)
 

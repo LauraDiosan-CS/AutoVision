@@ -25,6 +25,9 @@ class HeadingErrorFilter(BaseFilter):
 
             data.lateral_offset = -(2 * distance_to_right_lane / total_distance) + 1
 
+            if data.lateral_offset > 1 or data.lateral_offset < -1:
+                raise ValueError(f"Lateral offset is out of range: {data.lateral_offset}")
+
             upper_lane_center = ((center_line.upper_x + right_line.upper_x) // 2,
                                  (center_line.upper_y + right_line.upper_y) // 2)
 

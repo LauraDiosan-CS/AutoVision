@@ -89,6 +89,7 @@ class MultiProcessingManager:
             try:
                 json_data = {"action": data.command.value,
                              "heading_error_degrees": data.heading_error,
+                             "lateral_error": data.lateral_offset,
                              "observed_acceleration": 0}
                 start_time = time.time()
                 r = self.http_pool.request('POST', Config.command_url,
