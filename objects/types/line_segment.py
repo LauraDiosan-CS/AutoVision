@@ -46,7 +46,7 @@ class LineSegment:
         """
         Computes the angle (in radians) that the line segment makes with the Ox axis.
         """
-        return np.arctan2(self.upper_y - self.lower_y, self.upper_x - self.lower_x)
+        return np.arctan2(abs(self.upper_y - self.lower_y), abs(self.upper_x - self.lower_x))
 
     def compute_intersecting_x_coordinate(self, horizontal_line_y) -> int:
         """
@@ -104,6 +104,27 @@ class LineSegment:
                     (self.lower_y - self.lower_x) * y +
                     self.lower_y * self.upper_x - self.upper_y * self.lower_x) /
                 self.compute_euclidean_distance())
+
+    def compute_interesting_point(self, other):
+        """
+        Computes the intersection point between the two line segments.
+        Args:
+        - other: The other line segment.
+        Returns:
+        - The coordinates of the intersection point.
+        """
+        print(f"Computing intersection between {self} and {other}")
+        x1, y1 = self.lower_x, self.lower_y
+        x2, y2 = self.upper_x, self.upper_y
+        x3, y3 = other.lower_x, other.lower_y
+        x4, y4 = other.upper_x, other.upper_y
+        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if denominator == 0:
+            return None
+        x = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denominator
+        y = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denominator
+        return x, y
+
 
     def __iter__(self):
         """

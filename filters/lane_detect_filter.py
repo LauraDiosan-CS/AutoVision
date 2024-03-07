@@ -15,7 +15,7 @@ def filter_lines_by_type(hough_line_segments: list[LineSegment], frame_width: in
         if line_segment.check_is_horizontal(20):
             horizontal_lines.append(line_segment)
         else:
-            if line_segment.upper_x < frame_width / 2:
+            if line_segment.lower_x < frame_width / 2:
                 left_lane_lines.append(line_segment)
             else:
                 right_lane_lines.append(line_segment)
@@ -69,9 +69,15 @@ class LaneDetectFilter(BaseFilter):
 
     def process(self, data: PipeData) -> PipeData:
         hough_lines = self.apply_houghLines(data.frame)
-
         if hough_lines is not None:
-            hough_line_segments = [LineSegment(*line[0]) for line in hough_lines]
+            hough_line_segments = []
+            for i in range(len(hough_lines)):
+                x1, y1, x2, y2 = hough_lines[i][0]
+                print(x1, y1, x2, y2)
+                if y1 < y2:  # point 1 is the upper point
+                    hough_line_segments.append(LineSegment(x2, y2, x1, y1))
+                else:
+                    hough_line_segments.append(LineSegment(x1, y1, x2, y2))
 
             white_line_segments, other_line_segments = filer_for_white_lines(data.unfiltered_frame, hough_line_segments)
             white_left_lane_lines, white_right_lane_lines, white_horizontal_lines = filter_lines_by_type(
@@ -165,17 +171,28 @@ class LaneDetectFilter(BaseFilter):
         horizontals_outside_of_lane = []
         for horiz_line_segment in horizontal_line_segments:
             if left_line and right_line:
-                if self.max_lane_height < horiz_line_segment.upper_y:  # if the line is above the lane
-                    horizontals_outside_of_lane.append(horiz_line_segment)
-                    continue
+                # if self.max_lane_height < horiz_line_segment.upper_y:  # if the line is above the lane
+                #     print("Horizontal line is above the lane")
+                #     horizontals_outside_of_lane.append(horiz_line_segment)
+                #     continue
                 # discretized_points: list[tuple[int, int]] = horiz_line_segment.discretize(num_points)
                 # for x, y in discretized_points:
-                if left_line.compute_distance_to_point(horiz_line_segment.upper_point) < threshold_distance and \
-                        right_line.compute_distance_to_point(horiz_line_segment.lower_point) < threshold_distance or \
-                        left_line.compute_distance_to_point(horiz_line_segment.lower_point) < threshold_distance and \
-                        right_line.compute_distance_to_point(horiz_line_segment.upper_point) < threshold_distance:
+                upper_is_left = horiz_line_segment.upper_x < horiz_line_segment.lower_x
+                right_endpoint = horiz_line_segment.lower_point if upper_is_left else horiz_line_segment.upper_point
+                left_endpoint = horiz_line_segment.upper_point if upper_is_left else horiz_line_segment.lower_point
+
+                left_intersect = left_line.compute_interesting_point(horiz_line_segment)
+                right_intersect = right_line.compute_interesting_point(horiz_line_segment)
+                if left_intersect is None or right_intersect is None:
+                    raise ValueError("Somehow vertical and horizontals are parallel")
+
+                left_distance = euclidean_distance(left_intersect, left_endpoint)
+                right_distance = euclidean_distance(right_intersect, right_endpoint)
+
+                if (left_distance + right_distance) / horiz_line_segment.compute_euclidean_distance() < 0.2:
                     filtered_horizontals.append(horiz_line_segment)
                     continue
+
                 horizontals_outside_of_lane.append(horiz_line_segment)
         return filtered_horizontals, horizontals_outside_of_lane
 
@@ -189,3 +206,7 @@ class LaneDetectFilter(BaseFilter):
         else:
             raise ValueError("The line segments are not valid")
         return extended_line
+
+
+def euclidean_distance(point1, point2):
+    return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
