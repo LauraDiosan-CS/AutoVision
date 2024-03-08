@@ -103,6 +103,10 @@ class LaneDetectFilter(BaseFilter):
         super().__init__(video_info=video_info, visualize=visualize)
 
         self.max_lane_height = self.height // 2
+        # Pixels per cm =   Width / Width in cm (or Height / Height in cm)
+        self.lane_width_in_cm = 35
+        self.camera_width_in_cm = 51
+        self.lane_width_in_pixels = int((self.width / self.camera_width_in_cm) * self.lane_width_in_cm)
 
     def process(self, data: PipeData) -> PipeData:
         hough_lines = self.apply_houghLines(data.frame)
@@ -138,6 +142,18 @@ class LaneDetectFilter(BaseFilter):
             right_line_segment = max(white_right_lane_lines, key=lambda l: l.compute_euclidean_distance())
             right_line_segment = self.extend_line(right_line_segment)
 
+        right_line_virtual = False
+        if left_line_segment is not None and right_line_segment is None:
+            right_line_segment = self.compute_virtual_right_lane(self.camera_width_in_cm, self.lane_width_in_pixels,
+                                                                 left_line_segment, th_cm=12)
+            right_line_virtual = True
+
+        left_line_virtual = False
+        if right_line_segment is not None and left_line_segment is None:
+            left_line_segment = self.compute_virtual_left_lane(self.camera_width_in_cm, self.lane_width_in_pixels,
+                                                               right_line_segment, th_cm=5)
+            left_line_virtual = True
+
         lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
             white_horizontal_lines,
             left_line_segment,
@@ -147,12 +163,14 @@ class LaneDetectFilter(BaseFilter):
                                           center_line=left_line_segment,
                                           right_line=right_line_segment,
                                           stop_lines=lane_white_horizontal_lines,
-                                          horizontals=None,
-                                          right_int=None,
-                                          center_int=None
+                                          center_line_virtual=left_line_virtual,
+                                          right_line_virtual=right_line_virtual,
                                           )
 
         if left_line_segment and right_line_segment:
+            # print("Left line slope: ", np.degrees(left_line_segment.slope), "Right line slope: ", np.degrees(
+            # right_line_segment.slope), "Sum in degrees: ", np.degrees(left_line_segment.slope +
+            # right_line_segment.slope))
             data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
         if self.visualize:
             visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
@@ -162,6 +180,43 @@ class LaneDetectFilter(BaseFilter):
             return data  # skip visualization from base filter
 
         return super().process(data)
+
+    def compute_virtual_right_lane(self, camera_width_in_cm, lane_width_in_pixels, left_line_segment, th_cm):
+        right_lower_y = left_line_segment.lower_y
+        right_upper_y = left_line_segment.upper_y
+        right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
+
+        x_distance_between_left_line_endings = abs(left_line_segment.upper_x - left_line_segment.lower_x)
+
+        dist_between_upper_points = lane_width_in_pixels - 2 * x_distance_between_left_line_endings
+        th_px = int((self.width / camera_width_in_cm) * th_cm)
+
+        # If the distance between the upper points is less than the threshold
+        if dist_between_upper_points < th_px:  # we are turning left
+            right_upper_x = left_line_segment.upper_x + lane_width_in_pixels
+        else:  # we are going straight
+            right_upper_x = right_lower_x - x_distance_between_left_line_endings
+
+        return LineSegment(right_lower_x, right_lower_y, right_upper_x, right_upper_y)
+
+    def compute_virtual_left_lane(self, camera_width_in_cm, lane_width_in_pixels, right_line_segment, th_cm):
+        left_lower_y = right_line_segment.lower_y
+        left_upper_y = right_line_segment.upper_y
+        left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
+
+        x_distance_between_right_line_endings = abs(right_line_segment.upper_x - right_line_segment.lower_x)
+
+        dist_between_upper_points = lane_width_in_pixels - 2 * x_distance_between_right_line_endings
+        th_px = int((self.width / camera_width_in_cm) * th_cm)
+
+        # If the distance between the upper points is less than the threshold
+        if dist_between_upper_points < th_px:
+            # we are turning left
+            left_upper_x = right_line_segment.upper_x - lane_width_in_pixels
+        else:  # we are going straight
+            left_upper_x = left_lower_x + x_distance_between_right_line_endings - 175
+
+        return LineSegment(left_lower_x, left_lower_y, left_upper_x, left_upper_y)
 
     # -----------------------------------------------
     # Processing Methods

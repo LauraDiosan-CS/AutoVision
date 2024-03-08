@@ -46,13 +46,6 @@ class DrawFilter(BaseFilter):
 
         # drawing horizontal lines
         # data = self.filter(data)
-        if data.road_markings is not None and len(data.road_markings.stop_lines):
-            stop_lines: list[LineSegment] = data.road_markings.stop_lines
-            for line in stop_lines:
-                cv2.line(frame,
-                         (line.upper_x, line.upper_y),
-                         (line.lower_x, line.lower_y),
-                         color=(0, 0, 255), thickness=3)
 
         # draw a horizontal ine at a specific height
         cv2.line(frame, (0, self.height // 2), (frame.shape[1], self.height // 2), color=(255, 255, 255), thickness=3)
@@ -81,6 +74,14 @@ class DrawFilter(BaseFilter):
 
         # drawing lane info
         if data.road_markings is not None:
+            if len(data.road_markings.stop_lines):
+                stop_lines: list[LineSegment] = data.road_markings.stop_lines
+                for line in stop_lines:
+                    cv2.line(frame,
+                             (line.upper_x, line.upper_y),
+                             (line.lower_x, line.lower_y),
+                             color=(0, 0, 255), thickness=3)
+
             center_line: LineSegment = data.road_markings.center_line
             right_line: LineSegment = data.road_markings.right_line
 
@@ -89,7 +90,8 @@ class DrawFilter(BaseFilter):
                                      (center_line.upper_y + right_line.upper_y) // 2)
 
                 self.draw_lane_endpoints(frame, center_line, right_line)
-                self.draw_lanes(frame, center_line, right_line)
+                self.draw_lanes(frame, center_line, right_line,
+                                data.road_markings.center_line_virtual, data.road_markings.right_line_virtual)
                 self.define_lane_area(frame, center_line, right_line)
 
                 self.draw_correct_path(frame, self.car_position, upper_lane_center)
@@ -98,7 +100,7 @@ class DrawFilter(BaseFilter):
                 if data.heading_error is not None:
                     self.put_text(frame, f'Heading Error: {data.heading_error: .2f} degrees')
                 if data.lateral_offset is not None:
-                    self.put_text(frame, f'Lateral Offset: {data.lateral_offset: .2f}', position=(0, 50))
+                    self.put_text(frame, f'Lateral Offset: {data.lateral_offset: .2f}', color=(0,0,255), position=(0, 50))
         else:
             self.put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
 
@@ -152,12 +154,16 @@ class DrawFilter(BaseFilter):
         cv2.line(frame, car_position, car_path_upper_limit, color=color, thickness=thickness)
 
     @staticmethod
-    def draw_lanes(frame, center_line, right_line, color_center=(255, 0, 0),
+    def draw_lanes(frame, center_line, right_line, center_line_virtual, right_line_virtual, color_center=(255, 0, 0),
                    color_right=(0, 255, 0), thickness=5):
+        if center_line_virtual:
+            color_center = (255, 0, 255)
         cv2.line(frame,
                  (center_line.lower_x, center_line.lower_y),
                  (center_line.upper_x, center_line.upper_y),
                  color=color_center, thickness=thickness)
+        if right_line_virtual:
+            color_right = (255, 0, 255)
         cv2.line(frame,
                  (right_line.lower_x, right_line.lower_y),
                  (right_line.upper_x, right_line.upper_y),
