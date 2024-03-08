@@ -14,9 +14,9 @@ class ObjectDetectionFilter(BaseFilter):
         self.model = YOLO(model_path)
 
         if torch.cuda.is_available():
-            print(f'{model_path} running on gpu...')
+            print(f'\n{model_path} running on gpu...\n')
         else:
-            print(f'{model_path} running on cpu...')
+            print(f'\n{model_path} running on cpu...\n')
 
         self.result = None
 
@@ -27,7 +27,7 @@ class ObjectDetectionFilter(BaseFilter):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame)
+        yolo_results = self.model(data.frame, verbose=False)
         data = self.pre_process_result(yolo_results[0], data)
         data.frame = yolo_results[0].plot()
 

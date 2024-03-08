@@ -34,6 +34,6 @@ class BaseFilter(ABC):
         # process the data
 
         if self.visualize:
-            data.processed_frames.append(data.frame.copy())
+            data.add_processed_frame(data.frame)
 
         return data

@@ -1,12 +1,12 @@
 import argparse
-import os
-import time
 
 import cv2
 import torch.multiprocessing as mp
 from config import Config
-from helpers.helpers import stack_images_v2, initialize_config, draw_rois_and_wait, Timer
+from filters.visualizer import Visualizer
+from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video
 from multiprocessing_manager import MultiProcessingManager
+from objects.types.video_info import VideoRois, VideoInfo
 
 
 def main():
@@ -19,21 +19,33 @@ def main():
 
     mp_manager.start()
 
+    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.roi_config_path)
+    video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
+                           width=Config.width, video_rois=video_rois)
+
+    data_visualizer = Visualizer(video_info=video_info)
+
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     replay_speed = 1
     frames_to_skip = 0
 
     while True:
+        print("Visualize Queue size : ", queue.qsize())
         data = queue.get()
 
         with Timer("Main Process Loop"):
-            with Timer("CV2 Show"):
-                if Config.visualize_only_final:
-                    cv2.imshow('CarVision', data.frame)
-                elif data.processed_frames is not None and len(data.processed_frames) > 0:
-                    imgStack = stack_images_v2(1, data.processed_frames)
-                    cv2.imshow('CarVision', imgStack)
+
+            if True:
+                visualized_frame = data_visualizer.process(data)
+
+            if Config.visualize_only_final:
+                cv2.imshow('CarVision', visualized_frame)
+            elif data.processed_frames is not None and len(data.processed_frames) > 0:
+                squashed_frames = sum(data.processed_frames.values(), [])
+                squashed_frames.append(visualized_frame)
+                imgStack = stack_images_v2(1, squashed_frames)
+                cv2.imshow('CarVision', imgStack)
 
             if replay_speed < 0:
                 wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
@@ -46,10 +58,8 @@ def main():
             if key & 0xFF == ord('q'):
                 break
             elif key & 0xFF == ord('x'):
-                # draw_rois_and_wait(data.frame, video_rois)
+                draw_rois_and_wait(data.frame, video_rois)
                 cv2.waitKey(0)
-            elif key & 0xFF == ord('h'):
-                pass
             elif key & 0xFF == ord('+'):
                 replay_speed += 1
                 if replay_speed == 0:
@@ -62,6 +72,8 @@ def main():
                 print(f"Replay speed: {replay_speed}")
 
     mp_manager.finish_saving()
+
+    mp_manager.join()
 
     cv2.destroyAllWindows()
 

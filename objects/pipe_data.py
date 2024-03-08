@@ -1,47 +1,60 @@
-from objects.types.road_info import RoadObject
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict
+from objects.types.road_info import RoadObject, RoadMarkings
 
 
+@dataclass(slots=True)
 class PipeData:
-    def __init__(self, frame, depth_frame, unfiltered_frame):
-        self.frame = frame
-        self.depth_frame = depth_frame
-        self.road_markings = None
-        self.heading_error = None
-        self.unfiltered_frame = unfiltered_frame
-        self.traffic_signs: list[RoadObject] = []
-        self.traffic_lights: list[RoadObject] = []
-        self.pedestrians: list[RoadObject] = []
-        self.horizontal_lines: list[RoadObject] = []
-        self.command: str = ""
-        self.processed_frames = []
+    frame: any
+    depth_frame: any
+    unfiltered_frame: any
+    processed_frames: Dict[str, List[any]] = field(default_factory=dict)
+    last_touched_process: str = ""
+    road_markings: Optional[RoadMarkings] = None
+    heading_error: Optional[float] = None
+    traffic_signs: List[RoadObject] = field(default_factory=list)
+    traffic_lights: List[RoadObject] = field(default_factory=list)
+    pedestrians: List[RoadObject] = field(default_factory=list)
+    horizontal_lines: List[RoadObject] = field(default_factory=list)
+    command: str = ""
 
-    def __str__(self):
-        return (f"PipeData(..., heading_error={self.heading_error}, "
-                f"processed_frames_count={len(self.processed_frames)})")
-
-    __repr__ = __str__
+    def add_processed_frame(self, frame):
+        """
+        Add a processed frame to the data.
+        """
+        if self.last_touched_process not in self.processed_frames:
+            self.processed_frames[self.last_touched_process] = [frame]
+        else:
+            self.processed_frames[self.last_touched_process].append(frame)
 
     def merge(self, other):
         """
         Merge data from another PipeData instance into this one.
         """
-        # Check if both instances have the same field
-        # for field in ['road_markings', 'heading_error']:
-        #     if getattr(self, field) is not None and getattr(other, field) is not None:
-        #         raise ValueError(f"Both instances have a value for the field '{field}'. Cannot merge.")
-
+        if other.frame is not None:
+            self.frame = other.frame
+        if other.depth_frame is not None:
+            self.depth_frame = other.depth_frame
+        if other.unfiltered_frame is not None:
+            self.unfiltered_frame = other.unfiltered_frame
         if other.road_markings is not None:
             self.road_markings = other.road_markings
         if other.heading_error is not None:
             self.heading_error = other.heading_error
+        if other.last_touched_process != "":
+            self.last_touched_process = other.last_touched_process
         if other.command != "":
             self.command = other.command
-        self.traffic_signs.extend(other.traffic_signs)
-        self.traffic_lights.extend(other.traffic_lights)
-        self.pedestrians.extend(other.pedestrians)
-        self.horizontal_lines.extend(other.horizontal_lines)
+        if other.traffic_signs and len(other.traffic_signs) > 0:
+            self.traffic_signs = other.traffic_signs
+        if other.traffic_lights and len(other.traffic_lights) > 0:
+            self.traffic_lights = other.traffic_lights
+        if other.pedestrians and len(other.pedestrians) > 0:
+            self.pedestrians = other.pedestrians
+        if other.horizontal_lines and len(other.horizontal_lines) > 0:
+            self.horizontal_lines = other.horizontal_lines
 
-        # Merge processed frames
-        self.processed_frames.extend(other.processed_frames)
+        for process_name, frames in other.processed_frames.items():
+            self.processed_frames[process_name] = frames
 
         return self

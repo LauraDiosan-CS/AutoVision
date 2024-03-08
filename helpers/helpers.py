@@ -182,7 +182,7 @@ def draw_rois_and_wait(frame, video_rois):
     plt.show()
 
 
-def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInfo):
+def save_frames(save_queue: mp.Queue, save_info: SaveInfo):
     print(f"\nSaving video to: {save_info.video_path}\n")
 
     fourcc = cv2.VideoWriter_fourcc(*"XVID")
@@ -194,11 +194,10 @@ def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInf
 
     while True:
         try:
-            with save_enabled.get_lock():
-                if not save_enabled.value:
-                    print("Saving process is stopping")
-                    break
             frame = save_queue.get(block=True, timeout=2)
+            if isinstance(frame, str) and "STOP" in frame:
+                print("Saving process received STOP")
+                break
             if isinstance(frame, np.ndarray) and frame.flags.writeable:
                 output_video_writer.write(frame)
             else:
@@ -206,13 +205,15 @@ def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInf
         except queue.Empty:
             pass
 
-    # Get all remaining frames from the queue and save them
+    print(f"Saving remaining frames")
     while not save_queue.empty():
-        print(f"Saving remaining frames, frames left:{save_queue.qsize()}")
+        print(f"frames left to save: {save_queue.qsize()}")
         frame = save_queue.get()
-        if frame is None:
-            print("save process received None")
+        if isinstance(frame, str) and "STOP" in frame:
             continue
-        output_video_writer.write(frame)
+        elif isinstance(frame, np.ndarray) and frame.flags.writeable:
+            output_video_writer.write(frame)
+        else:
+            print(f"Invalid frame type for saving: {type(frame)}")
 
     output_video_writer.release()

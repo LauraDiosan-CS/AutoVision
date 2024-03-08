@@ -1,7 +1,6 @@
 from objects.pipe_data import PipeData
 from objects.types.line_segment import LineSegment
 from objects.types.video_info import VideoInfo
-from filters.base_filter import BaseFilter
 import cv2
 import numpy as np
 
@@ -26,15 +25,16 @@ def draw_horizontals(frame, lines, right_int, center_int):
         cv2.circle(frame, p, radius=3, color=(0, 0, 255))
 
 
-class DrawFilter(BaseFilter):
+class Visualizer:
     def __init__(self, video_info: VideoInfo):
-        super().__init__(video_info=video_info, visualize=True)
+        self.width = video_info.width
+        self.height = video_info.height
         self.car_position = (int(self.width / 2), self.height)
         self.center_line = None
         self.right_line = None
         self.stop_lines = None
 
-    def process(self, data: PipeData) -> PipeData:
+    def process(self, data: PipeData):
         if data.unfiltered_frame is None:
             return data
         frame = data.unfiltered_frame.copy()
@@ -92,9 +92,7 @@ class DrawFilter(BaseFilter):
         else:
             self.put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
 
-        data.frame = frame
-
-        return super().process(data)
+        return frame
 
     @staticmethod
     def put_text(frame, text, position=(0, 100), font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -112,7 +110,7 @@ class DrawFilter(BaseFilter):
 
         cv2.addWeighted(frame, 1, lane_roi_mask, alpha, 0, frame)
 
-    def filter(self, data):
+    def filter(self, data: PipeData) -> PipeData:
         image = data.frame.copy()
         gray = cv2.cvtColor(data.frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -121,7 +119,7 @@ class DrawFilter(BaseFilter):
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         image = cv2.drawContours(image, contours, -1, (0, 255, 75), 2)
-        data.processed_frames.append(image)
+        data.add_processed_frame(image)
 
         return data
 
@@ -129,8 +127,8 @@ class DrawFilter(BaseFilter):
     def draw_lane_endpoints(frame, center_line: LineSegment, right_line: LineSegment, color_center=(255, 0, 0),
                             color_right=(0, 255, 0),
                             radius=10):
-        DrawFilter.draw_points(frame, [(center_line.upper_x, center_line.upper_y)], color=color_center, radius=radius)
-        DrawFilter.draw_points(frame, [(right_line.upper_x, right_line.upper_y)], color=color_right, radius=radius)
+        Visualizer.draw_points(frame, [(center_line.upper_x, center_line.upper_y)], color=color_center, radius=radius)
+        Visualizer.draw_points(frame, [(right_line.upper_x, right_line.upper_y)], color=color_right, radius=radius)
 
     @staticmethod
     def draw_correct_path(frame, car_position, upper_lane_center, color=(127, 127, 255), thickness=3):
@@ -160,7 +158,7 @@ class DrawFilter(BaseFilter):
 
     @staticmethod
     def draw_car_position(frame, car_position, color=(2, 135, 247), radius=20):
-        DrawFilter.draw_points(frame, [car_position], color=color, radius=radius)
+        Visualizer.draw_points(frame, [car_position], color=color, radius=radius)
 
     def draw_command(self, frame, command: str):
         self.put_text(frame, f'Command: {command}', position=(0, 20), color=(0, 255, 0))

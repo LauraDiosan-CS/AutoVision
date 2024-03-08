@@ -1,10 +1,8 @@
-import json
-
 import torch.multiprocessing as mp
 import urllib3
 
-from behaviour_planner import BehaviourPlanner
 from config import Config
+from controllers.behaviour_planner import BehaviourPlanner
 
 
 class Controller(mp.Process):
@@ -12,10 +10,11 @@ class Controller(mp.Process):
         super().__init__()
         self.pipe = pipe
         self.http_connection_failed_count = 0
-        self.http_pool = urllib3.PoolManager()
         self.behaviour_planner = BehaviourPlanner()
 
     def run(self):
+        http_pool = urllib3.PoolManager()
+
         while True:
             data = self.pipe.recv()
 
@@ -27,16 +26,16 @@ class Controller(mp.Process):
                 horizontal_lines=data.horizontal_lines
             )
 
-            self.handle_http_communication(data)
+            self.handle_http_communication(data, http_pool)
 
-    def handle_http_communication(self, data):
+    def handle_http_communication(self, data, http_pool):
         if Config.command_url and self.http_connection_failed_count < 3:
             try:
                 json_data = {"action": data.command.value,
                              "heading_error_degrees": data.heading_error,
                              "observed_acceleration": 0}
-                r = self.http_pool.request('POST', Config.command_url, headers={'Content-Type': 'application/json'},
-                                           body=json.dumps(json_data))
+                # r = http_pool.request('POST', Config.command_url, headers={'Content-Type': 'application/json'},
+                #                            body=json.dumps(json_data))
             except Exception as e:
                 print(f"Error connecting to the car: {e}")
                 self.http_connection_failed_count += 1

@@ -32,10 +32,10 @@
         },
         "roi": {
             "roi_type": "lines",
-            "visualize": true
+            "visualize": false
         },
         "lane_detect": {
-            "visualize": false
+            "visualize": true
         },
         "heading_error": {
             "visualize": false

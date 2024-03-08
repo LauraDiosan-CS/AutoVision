@@ -72,7 +72,7 @@ class LaneDetectFilter(BaseFilter):
 
                 for line in right_lane_lines:
                     cv2.line(frame, line.lower_point, line.upper_point, (0, 255, 0), 1)
-                data.processed_frames.append(frame)
+                data.add_processed_frame(frame)
                 return data  # skip visualization from base filter
 
         return super().process(data)

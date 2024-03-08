@@ -2,12 +2,12 @@ class Config:
     models_dir_path = 'objects/models/'
     videos_dir = 'videos'
     recordings_dir = 'videos/recordings'
-    pipeline_config_path = 'objects/config/lane_detect_config.json'
+    pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
     roi_config_path = 'objects/config/roi.json'
-    video_name = 'qualifiers_2.mp4'
+    video_name = 'curve_90_1.mp4'
     visualize_only_final = False
     save_video = True
-    fps = 15
+    fps = 30
     width = 1920
     height = 1080
     command_url = 'http://10.0.0.2:8080/control'
