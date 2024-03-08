@@ -13,10 +13,11 @@ def main():
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
 
-    parallel_config, video_info, video_rois = initialize_config()
+    queue = mp.Queue()
 
-    mp_manager = MultiProcessingManager(parallel_config, video_info, save_output=True)
-    # TODO move save input into new process maybe move process into manager
+    mp_manager = MultiProcessingManager(queue, save_output=True)
+
+    mp_manager.start()
 
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
@@ -24,15 +25,9 @@ def main():
     frames_to_skip = 0
 
     while True:
-        if not queue.empty():
-            frame = queue.get()
-        else:
-            continue
-        with Timer("Main Process Loop"):
-            print()
-            with Timer("MP Manager"):
-                data = mp_manager.process_frame(frame, apply_draw_filter=True)
+        data = queue.get()
 
+        with Timer("Main Process Loop"):
             with Timer("CV2 Show"):
                 if Config.visualize_only_final:
                     cv2.imshow('CarVision', data.frame)
@@ -51,7 +46,7 @@ def main():
             if key & 0xFF == ord('q'):
                 break
             elif key & 0xFF == ord('x'):
-                draw_rois_and_wait(frame, video_rois)
+                # draw_rois_and_wait(data.frame, video_rois)
                 cv2.waitKey(0)
             elif key & 0xFF == ord('h'):
                 pass
@@ -68,7 +63,6 @@ def main():
 
     mp_manager.finish_saving()
 
-    camera_proc.join()
     cv2.destroyAllWindows()
 
 

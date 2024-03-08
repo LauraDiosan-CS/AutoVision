@@ -26,9 +26,9 @@ class PipeData:
         Merge data from another PipeData instance into this one.
         """
         # Check if both instances have the same field
-        for field in ['road_markings', 'heading_error']:
-            if getattr(self, field) is not None and getattr(other, field) is not None:
-                raise ValueError(f"Both instances have a value for the field '{field}'. Cannot merge.")
+        # for field in ['road_markings', 'heading_error']:
+        #     if getattr(self, field) is not None and getattr(other, field) is not None:
+        #         raise ValueError(f"Both instances have a value for the field '{field}'. Cannot merge.")
 
         if other.road_markings is not None:
             self.road_markings = other.road_markings
