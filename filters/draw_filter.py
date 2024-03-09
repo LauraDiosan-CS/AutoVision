@@ -48,7 +48,7 @@ class DrawFilter(BaseFilter):
         # data = self.filter(data)
 
         # draw a horizontal ine at a specific height
-        cv2.line(frame, (0, self.height // 2), (frame.shape[1], self.height // 2), color=(255, 255, 255), thickness=3)
+        cv2.line(frame, (0, 600), (frame.shape[1], 600), color=(255, 255, 255), thickness=3)
 
         # drawing signs info
         signs = []

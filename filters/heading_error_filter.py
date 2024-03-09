@@ -47,6 +47,6 @@ class HeadingErrorFilter(BaseFilter):
             and needs to  move to the left to correct its position, hence the steering angle needs to be negative'''
             if direction_vector[0] < 0:
                 heading_error = -heading_error
-            data.heading_error = heading_error
+            data.heading_error = -heading_error
 
         return super().process(data)

@@ -75,6 +75,8 @@ class MultiProcessingManager:
             horizontal_lines=data.horizontal_lines
         )
 
+        print(f"Command: {data.command}")
+
         self.handle_http_communication(data)
 
         if self.save_input and self.save_enabled is not None and self.save_enabled.value:

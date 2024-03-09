@@ -4,7 +4,7 @@ class Config:
     recordings_dir = 'videos/recordings'
     pipeline_config_path = 'objects/config/lane_detect_config.json'
     roi_config_path = 'objects/config/roi.json'
-    video_name = 'qualifiers_5_720.mp4'
+    video_name = 'qualifiers_9_720.mp4'
     visualize_only_final = False
     save_video = True
     http_connection_failed_limit = 0
