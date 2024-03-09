@@ -4,13 +4,15 @@ class Config:
     recordings_dir = 'videos/recordings'
     pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
     roi_config_path = 'objects/config/roi.json'
-    video_name = 'curve_90_1.mp4'
+    video_name = 'qualifiers_5_720.mp4'
     apply_visualizer = True
     save_video = False
     save_processed_video = False
-    fps = 30
-    width = 1920
-    height = 1080
+    http_connection_failed_limit = 0
+    http_timeout = 5
+    fps = 15
+    width = 1280
+    height = 720
     command_url = 'http://10.0.0.2:8080/control'
 
     def __init__(self):

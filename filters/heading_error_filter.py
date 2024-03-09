@@ -15,7 +15,21 @@ class HeadingErrorFilter(BaseFilter):
             return data
         center_line: LineSegment = data.road_markings.center_line
         right_line: LineSegment = data.road_markings.right_line
+
         if center_line and right_line:
+            lane_distance = right_line.lower_x - center_line.lower_x
+            half_lane_distance = lane_distance / 2
+            dist_to_left_lane = self.width / 2 - center_line.lower_x
+            data.lateral_offset = (dist_to_left_lane - half_lane_distance) / half_lane_distance
+
+            # distance_to_right_lane = right_line.lower_x - self.width // 2
+            # distance_to_left_lane = self.width // 2 - center_line.lower_x
+            #
+            # total_distance = distance_to_right_lane + distance_to_left_lane
+            #
+            # data.lateral_offset = -(2 * distance_to_right_lane / total_distance) + 1
+            #
+
             upper_lane_center = ((center_line.upper_x + right_line.upper_x) // 2,
                                  (center_line.upper_y + right_line.upper_y) // 2)
 

@@ -12,6 +12,7 @@ class PipeData:
     last_touched_process: str = ""
     road_markings: Optional[RoadMarkings] = None
     heading_error: Optional[float] = None
+    lateral_offset: Optional[float] = None
     traffic_signs: List[RoadObject] = field(default_factory=list)
     traffic_lights: List[RoadObject] = field(default_factory=list)
     pedestrians: List[RoadObject] = field(default_factory=list)
@@ -43,6 +44,8 @@ class PipeData:
             self.heading_error = other.heading_error
         if other.last_touched_process != "":
             self.last_touched_process = other.last_touched_process
+        if other.lateral_offset is not None:
+            self.lateral_offset = other.lateral_offset
         if other.command != "":
             self.command = other.command
         if other.traffic_signs and len(other.traffic_signs) > 0:
