@@ -16,10 +16,10 @@ def main():
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
 
-    queue = mp.Queue()
+    viz_pipe, viz_pipe_mp_manager = mp.Pipe()
     mp_manager_terminate_flag = mp.Value('b', False)
 
-    mp_manager = MultiProcessingManager(queue, mp_manager_terminate_flag)
+    mp_manager = MultiProcessingManager(viz_pipe_mp_manager, mp_manager_terminate_flag)
 
     mp_manager.start()
 
@@ -52,12 +52,12 @@ def main():
     replay_speed = 1
     frames_to_skip = 0
 
-    queue.get() # Wait for the first frame to be processed
+    viz_pipe.recv() # Wait for the first frame to be processed
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     while True:
-        print("Visualize Queue size : ", queue.qsize())
-        data = queue.get()
+        # print("Visualize Queue size : ", viz_pipe.qsize())
+        data = viz_pipe.recv()
 
         with Timer("Main Process Loop"):
             if Config.apply_visualizer:

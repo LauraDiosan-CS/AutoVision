@@ -9,7 +9,6 @@ class Controller(mp.Process):
     def __init__(self, pipe: mp.Pipe):
         super().__init__()
         self.pipe = pipe
-        self.http_connection_failed_count = 0
         self.behaviour_planner = BehaviourPlanner()
 
     def run(self):
@@ -32,7 +31,7 @@ class Controller(mp.Process):
             self.handle_http_communication(data, http_pool)
 
     def handle_http_communication(self, data, http_pool):
-        if Config.command_url and self.http_connection_failed_count < 3:
+        if Config.command_url and Config.http_connection_failed_limit < 3:
             try:
                 json_data = {"action": data.command.value,
                              "heading_error_degrees": data.heading_error,
@@ -41,4 +40,3 @@ class Controller(mp.Process):
                 #                            body=json.dumps(json_data))
             except Exception as e:
                 print(f"Error connecting to the car: {e}")
-                self.http_connection_failed_count += 1

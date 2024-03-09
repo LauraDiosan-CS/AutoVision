@@ -82,20 +82,20 @@ def visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, 
         color_mapping_bgr["dark_green"]: (other_right_lane_lines, 1),
         color_mapping_bgr["orange"]: (other_horizontal_lines, 1)
     })
-    data.processed_frames.append(frame)
+    data.add_processed_frame(frame)
     frame = draw_lines(data.frame.copy(), line_segments_with_colors={
         color_mapping_bgr["cyan"]: (white_left_lane_lines, 2),
         color_mapping_bgr["light_green"]: (white_right_lane_lines, 2),
         color_mapping_bgr["pink"]: (white_horizontal_lines, 1)
     })
-    data.processed_frames.append(frame)
+    data.add_processed_frame(frame)
     frame = draw_lines(data.frame.copy(), line_segments_with_colors={
         color_mapping_bgr["cyan"]: ([left_line_segment], 5) if left_line_segment else ([], 5),
         color_mapping_bgr["lime"]: ([right_line_segment], 5) if right_line_segment else ([], 5),
         color_mapping_bgr["red"]: (lane_white_horizontal_lines, 5),
         color_mapping_bgr["violet"]: (white_horizontals_outside_of_lane, 2),
     })
-    data.processed_frames.append(frame)
+    data.add_processed_frame(frame)
 
 
 class LaneDetectFilter(BaseFilter):

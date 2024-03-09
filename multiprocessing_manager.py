@@ -71,13 +71,13 @@ def camera_process(terminate_flag: mp.Value, save_enabled_flag: mp.Value, in_pip
 
 
 class MultiProcessingManager(mp.Process):
-    def __init__(self, queue: mp.Queue, terminate_flag: mp.Value):
+    def __init__(self, viz_pipe: mp.Pipe, terminate_flag: mp.Value):
         super().__init__()
         self.save_enabled = mp.Value('b', Config.save_video)
         self.terminate_flag = terminate_flag
         self.camera_term_flag = mp.Value('b', False)
 
-        self.viz_queue = queue
+        self.viz_pipe = viz_pipe
         self.http_connection_failed_count = 0
 
         self.parallel_processes = []
@@ -131,7 +131,7 @@ class MultiProcessingManager(mp.Process):
 
                 self.controller_pipe.send(current_data)
 
-                self.viz_queue.put(current_data)
+                self.viz_pipe.send(current_data)
         print("Exiting MultiProcessingManager")
 
     def join_all_processes(self):
