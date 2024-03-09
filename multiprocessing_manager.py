@@ -41,7 +41,6 @@ def camera_process(terminate_flag: mp.Value, save_enabled_flag: mp.Value, in_pip
         save_process.start()
 
     while not terminate_flag.value and cap.isOpened():
-        print(f"Camera term flag: {terminate_flag.value}")
         with Timer("Camera Process Loop", min_print_time=0.1):
             ret, frame = cap.read()
             if ret:
@@ -77,7 +76,6 @@ class MultiProcessingManager(mp.Process):
         self.save_enabled = mp.Value('b', Config.save_video)
         self.terminate_flag = terminate_flag
         self.camera_term_flag = mp.Value('b', False)
-        self.cam_term_lock = mp.Lock()
 
         self.viz_queue = queue
         self.http_connection_failed_count = 0
@@ -153,9 +151,9 @@ class MultiProcessingManager(mp.Process):
             process.terminate()
         print("All parallel processes joined")
 
-        with self.cam_term_lock:
-            print("Setting camera term flag")
-            self.camera_term_flag.value = True  # Terminate the camera process
+        print("Setting camera term flag")
+        self.camera_term_flag.value = True  # Terminate the camera process
         print("Joining Camera process")
-        self.camera_process.join()
+        self.camera_process.terminate()
+        # self.camera_process.join()
         print("Camera process joined")

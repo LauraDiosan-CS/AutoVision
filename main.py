@@ -113,7 +113,7 @@ def main():
     print("Processed frame saving process joined")
 
     print("Joining MultiProcessingManager")
-    mp_manager.join()
+    mp_manager.terminate()
     print("MultiProcessingManager joined")
 
 
