@@ -1,82 +1,103 @@
 import argparse
-import numpy as np
+import os
+from datetime import datetime
+
 import cv2
 import torch.multiprocessing as mp
-
 from config import Config
-from helpers.helpers import stack_images_v2, initialize_config, draw_rois_and_wait
+from filters.visualizer import Visualizer
+from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
 from multiprocessing_manager import MultiProcessingManager
+from objects.types.save_info import SaveInfo
+from objects.types.video_info import VideoRois, VideoInfo
+
 
 import pyrealsense2 as rs
 
-
-def camera_process(queue):
-    pipelineCamera = rs.pipeline()
-    realsense_config = rs.config()
-    realsense_config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, Config.fps)
-    realsense_config.enable_stream(rs.stream.color, Config.width, Config.height, rs.format.bgr8, Config.fps)
-    pipelineCamera.start(realsense_config)
-
-    while True:
-        frames = pipelineCamera.wait_for_frames()
-        color_frame = frames.get_color_frame()
-        depth_frame = frames.get_depth_frame()
-
-        if not color_frame and not depth_frame:
-            print("!!! No frames received from camera !!!")
-            continue
-
-        color_frame = np.asanyarray(color_frame.get_data())
-        depth_frame = np.asanyarray(depth_frame.get_data())
-
-        queue.put((color_frame, depth_frame))
 
 def main():
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
 
-    pipelineCamera = rs.pipeline()
-    realsense_config = rs.config()
-    realsense_config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, Config.fps)
-    realsense_config.enable_stream(rs.stream.color, Config.width, Config.height, rs.format.bgr8, Config.fps)
-    pipelineCamera.start(realsense_config)
+    viz_pipe, viz_pipe_mp_manager = mp.Pipe()
+    mp_manager_terminate_flag = mp.Value('b', False)
 
-    parallel_config, video_info, video_rois = initialize_config()
+    mp_manager = MultiProcessingManager(viz_pipe_mp_manager, mp_manager_terminate_flag)
 
-    pool_manager = MultiProcessingManager(parallel_config, video_info, save_input=True)
+    mp_manager.start()
 
+    save_queue = None
+    save_process = None
+    if Config.save_processed_video:
+        save_queue = mp.Queue()
+
+        # Extract the name without the extension
+        video_name = os.path.splitext(Config.video_name)[0]
+
+        save_info = SaveInfo(
+            video_path=os.path.join(Config.recordings_dir,
+                                    f"Processed_{video_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.mp4"),
+            width=Config.width,
+            height=Config.height,
+            fps=Config.fps
+        )
+        save_process = mp.Process(target=save_frames,
+                                  args=(save_queue,
+                                        save_info))
+        save_process.start()
+
+    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.roi_config_path)
+    video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
+                           width=Config.width, video_rois=video_rois)
+
+    data_visualizer = Visualizer(video_info=video_info)
+
+    viz_pipe.recv() # Wait for the first frame to be processed
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     while True:
-        frames = pipelineCamera.wait_for_frames()
-        color_frame = frames.get_color_frame()
-        depth_frame = frames.get_depth_frame()
+        # print("Visualize Queue size : ", viz_pipe.qsize())
+        data = viz_pipe.recv()
 
-        if not color_frame and not depth_frame:
-            print("!!! No frames received from camera !!!")
-            continue
+        with Timer("Main Process Loop"):
+            if Config.apply_visualizer:
+                visualized_frame = data_visualizer.draw_frame_based_on_data(data)
 
-        color_frame = np.asanyarray(color_frame.get_data())
-        depth_frame = np.asanyarray(depth_frame.get_data())
+            if data.processed_frames is not None and len(data.processed_frames) > 0:
+                squashed_frames = sum(data.processed_frames.values(), [])
+                squashed_frames.append(visualized_frame)
+                final_img = stack_images_v2(1, squashed_frames)
+            else:
+                final_img = visualized_frame
 
-        data = pool_manager.process_frame(color_frame, depth_frame, apply_draw_filter=True)
+            cv2.imshow('CarVision', final_img)
 
-        if data.processed_frames is not None and len(data.processed_frames) > 0:
-            imgStack = stack_images_v2(1, data.processed_frames)
-            cv2.imshow('CarVision', imgStack)
-        else:
-            cv2.imshow('CarVision', data.frame)
+            if Config.save_processed_video and save_queue is not None:
+                print("Processed Save Queue size : ", save_queue.qsize())
+                save_queue.put(visualized_frame)
 
-        key = cv2.waitKey(5)
-        if key & 0xFF == ord('q'):
-            break
-        elif key & 0xFF == ord('x'):
-            draw_rois_and_wait(color_frame, video_rois)
-            cv2.waitKey(0)
-        elif key & 0xFF == ord('s'):
-            pool_manager.finish_saving()
+            key = cv2.waitKey(5)
+            if key & 0xFF == ord('q'):
+                break
+            elif key & 0xFF == ord('x'):
+                draw_rois_and_wait(visualized_frame, video_rois)
+                cv2.waitKey(0)
+
 
     cv2.destroyAllWindows()
+
+    mp_manager_terminate_flag.value = True
+    print("Initiating Termination of MultiProcessingManager")
+
+    if save_queue is not None and save_process is not None:
+        print("Joining processed frame saving process")
+        save_queue.put("STOP")
+        save_process.join()
+    print("Processed frame saving process joined")
+
+    print("Joining MultiProcessingManager")
+    mp_manager.terminate()
+    print("MultiProcessingManager joined")
 
 
 def update_config(config, args):

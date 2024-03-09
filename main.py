@@ -88,7 +88,7 @@ def main():
             if key & 0xFF == ord('q'):
                 break
             elif key & 0xFF == ord('x'):
-                draw_rois_and_wait(data.frame, video_rois)
+                draw_rois_and_wait(visualized_frame, video_rois)
                 cv2.waitKey(0)
             elif key & 0xFF == ord('+'):
                 replay_speed += 1
