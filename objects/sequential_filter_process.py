@@ -13,10 +13,15 @@ class SequentialFilterProcess(mp.Process):
     def run(self):
         while True:
             data = self.in_pipe.recv()
+            if data == "STOP":
+                print(f"Stopping {self.name}")
+                break
             data.last_touched_process = self.name
             for filter in self.filter_configuration:
                 data = filter.process(data)
             self.out_queue.put(data)
+
+        print(f"Exiting {self.name}")
 
 
 # class SequentialFilterProcess(mp.Process):

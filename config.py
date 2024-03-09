@@ -5,8 +5,9 @@ class Config:
     pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
     roi_config_path = 'objects/config/roi.json'
     video_name = 'curve_90_1.mp4'
-    visualize_only_final = False
-    save_video = True
+    apply_visualizer = True
+    save_video = False
+    save_processed_video = False
     fps = 30
     width = 1920
     height = 1080

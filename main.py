@@ -1,11 +1,14 @@
 import argparse
+import os
+from datetime import datetime
 
 import cv2
 import torch.multiprocessing as mp
 from config import Config
 from filters.visualizer import Visualizer
-from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video
+from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
 from multiprocessing_manager import MultiProcessingManager
+from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoRois, VideoInfo
 
 
@@ -14,10 +17,31 @@ def main():
     mp.set_sharing_strategy('file_system')
 
     queue = mp.Queue()
+    mp_manager_terminate_flag = mp.Value('b', False)
 
-    mp_manager = MultiProcessingManager(queue, save_output=True)
+    mp_manager = MultiProcessingManager(queue, mp_manager_terminate_flag)
 
     mp_manager.start()
+
+    save_queue = None
+    save_process = None
+    if Config.save_processed_video:
+        save_queue = mp.Queue()
+
+        # Extract the name without the extension
+        video_name = os.path.splitext(Config.video_name)[0]
+
+        save_info = SaveInfo(
+            video_path=os.path.join(Config.recordings_dir,
+                                    f"Processed_{video_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.mp4"),
+            width=Config.width,
+            height=Config.height,
+            fps=Config.fps
+        )
+        save_process = mp.Process(target=save_frames,
+                                  args=(save_queue,
+                                        save_info))
+        save_process.start()
 
     video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.roi_config_path)
     video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
@@ -25,27 +49,33 @@ def main():
 
     data_visualizer = Visualizer(video_info=video_info)
 
-    cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
-
     replay_speed = 1
     frames_to_skip = 0
+
+    queue.get() # Wait for the first frame to be processed
+    cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     while True:
         print("Visualize Queue size : ", queue.qsize())
         data = queue.get()
 
         with Timer("Main Process Loop"):
+            if Config.apply_visualizer:
+                visualized_frame = data_visualizer.draw_frame_based_on_data(data)
 
-            if True:
-                visualized_frame = data_visualizer.process(data)
-
-            if Config.visualize_only_final:
-                cv2.imshow('CarVision', visualized_frame)
-            elif data.processed_frames is not None and len(data.processed_frames) > 0:
+            if data.processed_frames is not None and len(data.processed_frames) > 0:
                 squashed_frames = sum(data.processed_frames.values(), [])
                 squashed_frames.append(visualized_frame)
-                imgStack = stack_images_v2(1, squashed_frames)
-                cv2.imshow('CarVision', imgStack)
+                final_img = stack_images_v2(1, squashed_frames)
+            else:
+                final_img = visualized_frame
+
+            cv2.imshow('CarVision', final_img)
+
+            if Config.save_processed_video and save_queue is not None:
+                print("Processed Save Queue size : ", save_queue.qsize())
+                save_queue.put(visualized_frame)
+
 
             if replay_speed < 0:
                 wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
@@ -71,11 +101,21 @@ def main():
                     replay_speed = -1
                 print(f"Replay speed: {replay_speed}")
 
-    mp_manager.finish_saving()
-
-    mp_manager.join()
-
     cv2.destroyAllWindows()
+
+    mp_manager_terminate_flag.value = True
+    print("Initiating Termination of MultiProcessingManager")
+
+    if save_queue is not None and save_process is not None:
+        print("Joining processed frame saving process")
+        save_queue.put("STOP")
+        save_process.join()
+    print("Processed frame saving process joined")
+
+    print("Joining MultiProcessingManager")
+    mp_manager.join()
+    print("MultiProcessingManager joined")
+
 
 
 def update_config(config, args):

@@ -188,13 +188,14 @@ def save_frames(save_queue: mp.Queue, save_info: SaveInfo):
     fourcc = cv2.VideoWriter_fourcc(*"XVID")
     output_video_writer = cv2.VideoWriter(
         save_info.video_path,
-        fourcc, Config.fps,
-        (Config.width, Config.height)
+        fourcc, save_info.fps,
+        (save_info.width, save_info.height)
     )
 
     while True:
         try:
-            frame = save_queue.get(block=True, timeout=2)
+            frame = save_queue.get()
+            print("!!! Got a frame !!!", type(frame))
             if isinstance(frame, str) and "STOP" in frame:
                 print("Saving process received STOP")
                 break
@@ -205,7 +206,10 @@ def save_frames(save_queue: mp.Queue, save_info: SaveInfo):
         except queue.Empty:
             pass
 
-    print(f"Saving remaining frames")
+    if save_queue.empty():
+        print(f"All frames saved")
+    else:
+        print(f"Saving remaining frames")
     while not save_queue.empty():
         print(f"frames left to save: {save_queue.qsize()}")
         frame = save_queue.get()

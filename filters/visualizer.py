@@ -34,7 +34,7 @@ class Visualizer:
         self.right_line = None
         self.stop_lines = None
 
-    def process(self, data: PipeData):
+    def draw_frame_based_on_data(self, data: PipeData):
         if data.unfiltered_frame is None:
             return data
         frame = data.unfiltered_frame.copy()

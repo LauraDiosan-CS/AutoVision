@@ -18,6 +18,9 @@ class Controller(mp.Process):
         while True:
             data = self.pipe.recv()
 
+            if data == "STOP":
+                break
+
             # Perform behavior planning based on processed data
             data.command = self.behaviour_planner.run_iteration(
                 traffic_signs=data.traffic_signs,
