@@ -48,7 +48,7 @@ class DrawFilter(BaseFilter):
         cv2.line(frame, (0, 600), (frame.shape[1], 600), color=(255, 255, 255), thickness=3)
 
         # drawing signs info
-        self.visualize_road_objects(frame, data.traffic_signs, initial_position=(0, 130), color=(255, 255, 255))
+        self.visualize_road_objects(frame, data.traffic_signs, initial_position=(0, 130), color=(0, 255, 255))
         self.visualize_road_objects(frame, data.traffic_lights, initial_position=(0, 250), color=(0, 255, 255))
         self.visualize_road_objects(frame, data.pedestrians, initial_position=(0, 400), color=(0, 255, 255))
 

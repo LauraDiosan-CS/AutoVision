@@ -1,7 +1,7 @@
 import numpy as np
 from objects.pipe_data import PipeData
 from objects.types.line_segment import LineSegment
-from objects.types.road_info import RoadMarkings
+from objects.types.road_info import RoadMarkings, RoadObject
 from objects.types.video_info import VideoInfo
 import cv2
 from filters.base_filter import BaseFilter
@@ -177,7 +177,13 @@ class LaneDetectFilter(BaseFilter):
                                           right_line_virtual=right_line_virtual,
                                           )
 
-        data.horizontal_lines = lane_white_horizontal_lines
+        horiz_line_objects = [RoadObject(bbox=[[horiz_line_segment.lower_x, horiz_line_segment.lower_y],
+                                               [horiz_line_segment.upper_x, horiz_line_segment.upper_y]],
+                                         label="horiz_line",
+                                         conf=1,
+                                         distance=0) for horiz_line_segment in lane_white_horizontal_lines]
+
+        data.horizontal_lines = horiz_line_objects
 
         if left_line_segment and right_line_segment:
             # print("Left line slope: ", np.degrees(left_line_segment.slope), "Right line slope: ", np.degrees(
