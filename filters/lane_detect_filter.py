@@ -136,11 +136,10 @@ class LaneDetectFilter(BaseFilter):
         right_line_segment = None
         if len(white_left_lane_lines) > 0:
             left_line_segment = max(white_left_lane_lines, key=lambda l: l.compute_vertical_distance())
-            # left_line_segment = self.extend_line(left_line_segment)
 
         if len(white_right_lane_lines) > 0:
             right_line_segment = max(white_right_lane_lines, key=lambda l: l.compute_euclidean_distance())
-            # right_line_segment = self.extend_line(right_line_segment)
+            right_line_segment = self.extend_line(right_line_segment)
 
         right_line_virtual = False
         if left_line_segment is not None and right_line_segment is None:
@@ -154,6 +153,17 @@ class LaneDetectFilter(BaseFilter):
                                                                right_line_segment, th_cm=5)
             left_line_virtual = True
 
+        if left_line_segment and right_line_segment:
+            half_lane_distance = self.lane_width_in_pixels / 2
+            dist_to_left_lane = self.width / 2 - left_line_segment.lower_x
+            data.lateral_offset = (dist_to_left_lane - half_lane_distance) / half_lane_distance
+
+        if left_line_segment:
+            left_line_segment = self.extend_line(left_line_segment)
+
+        if right_line_segment:
+            right_line_segment = self.extend_line(right_line_segment)
+
         lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
             white_horizontal_lines,
             left_line_segment,
@@ -166,6 +176,8 @@ class LaneDetectFilter(BaseFilter):
                                           center_line_virtual=left_line_virtual,
                                           right_line_virtual=right_line_virtual,
                                           )
+
+        data.horizontal_lines = lane_white_horizontal_lines
 
         if left_line_segment and right_line_segment:
             # print("Left line slope: ", np.degrees(left_line_segment.slope), "Right line slope: ", np.degrees(
@@ -184,7 +196,6 @@ class LaneDetectFilter(BaseFilter):
     def compute_virtual_right_lane(self, camera_width_in_cm, lane_width_in_pixels, left_line_segment, th_cm):
         right_lower_y = left_line_segment.lower_y
         right_upper_y = left_line_segment.upper_y
-        right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
 
         x_distance_between_left_line_endings = abs(left_line_segment.upper_x - left_line_segment.lower_x)
 
@@ -193,8 +204,10 @@ class LaneDetectFilter(BaseFilter):
 
         # If the distance between the upper points is less than the threshold
         if dist_between_upper_points < th_px:  # we are turning left
-            right_upper_x = left_line_segment.upper_x + lane_width_in_pixels
+            right_lower_x = left_line_segment.lower_x + lane_width_in_pixels - 350
+            right_upper_x = left_line_segment.upper_x + lane_width_in_pixels - 350
         else:  # we are going straight
+            right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
             right_upper_x = right_lower_x - x_distance_between_left_line_endings
 
         return LineSegment(right_lower_x, right_lower_y, right_upper_x, right_upper_y)
@@ -202,7 +215,6 @@ class LaneDetectFilter(BaseFilter):
     def compute_virtual_left_lane(self, camera_width_in_cm, lane_width_in_pixels, right_line_segment, th_cm):
         left_lower_y = right_line_segment.lower_y
         left_upper_y = right_line_segment.upper_y
-        left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
 
         x_distance_between_right_line_endings = abs(right_line_segment.upper_x - right_line_segment.lower_x)
 
@@ -212,8 +224,10 @@ class LaneDetectFilter(BaseFilter):
         # If the distance between the upper points is less than the threshold
         if dist_between_upper_points < th_px:
             # we are turning left
-            left_upper_x = right_line_segment.upper_x - lane_width_in_pixels
+            left_upper_x = right_line_segment.upper_x - lane_width_in_pixels + 350
+            left_lower_x = right_line_segment.lower_x - lane_width_in_pixels + 350
         else:  # we are going straight
+            left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
             left_upper_x = left_lower_x + x_distance_between_right_line_endings
 
         return LineSegment(left_lower_x, left_lower_y, left_upper_x, left_upper_y)

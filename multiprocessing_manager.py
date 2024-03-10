@@ -5,7 +5,6 @@ import urllib3
 import json
 import torch.multiprocessing as mp
 
-from behaviour_planner import BehaviourPlanner
 from config import Config
 from filters.base_filter import BaseFilter
 from helpers.helpers import save_frames
@@ -18,7 +17,6 @@ from process_pipeline_manager import ProcessPipelineManager
 class MultiProcessingManager:
     def __init__(self, parallel_config: list[list[BaseFilter]],
                  video_info: VideoInfo, save_input=False, save_output=False):
-        self.behaviour_planner = BehaviourPlanner()
         self.save_input = save_input
         self.save_output = save_output
         self.http_pool = urllib3.PoolManager()
@@ -65,14 +63,6 @@ class MultiProcessingManager:
         data = self.process_pipeline_manager.process_frame(
             data=data,
             apply_draw_filter=apply_draw_filter or self.save_output  # Apply draw filter if saving is enabled
-        )
-
-        # Perform behavior planning based on processed data
-        data.command = self.behaviour_planner.run_iteration(
-            traffic_signs=data.traffic_signs,
-            traffic_lights=data.traffic_lights,
-            pedestrians=data.pedestrians,
-            horizontal_lines=data.horizontal_lines
         )
 
         print(f"Command: {data.command}")
