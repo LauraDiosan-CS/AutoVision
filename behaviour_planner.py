@@ -11,7 +11,6 @@ class ControlAction(Enum):
 
 
 class BehaviourPlanner:
-    HORIZ_LINE_THRESHOLD_DISTANCE = 100
     PEDESTRIAN_THRESHOLD_DISTANCE = 100
     TRAFFIC_LIGHT_THRESHOLD_DISTANCE = 100
     TRAFFIC_SIGN_THRESHOLD_DISTANCE = 100
@@ -32,15 +31,14 @@ class BehaviourPlanner:
         if self.paused:
             if (len(pedestrians) == 0 or pedestrians[0].distance > self.PEDESTRIAN_THRESHOLD_DISTANCE) \
                     and (len(traffic_signs) == 0 or
-                         traffic_lights[0].distance > self.HORIZ_LINE_THRESHOLD_DISTANCE or
+                         traffic_lights[0].distance > self.TRAFFIC_LIGHT_THRESHOLD_DISTANCE or
                          not any(map(lambda traffic_light: traffic_light.label == "red", traffic_lights)
                                  )
             ):
                 self.paused = False
                 command = ControlAction.Resume
         elif self.stop_after_line_invisible:
-            if all(map(lambda horizontal_Line: horizontal_Line.distance > self.HORIZ_LINE_THRESHOLD_DISTANCE,
-                       horizontal_lines)):
+            if len(horizontal_lines) > 0:
                 self.stop_after_line_invisible = False
                 match self.reason:
                     case "Stop":

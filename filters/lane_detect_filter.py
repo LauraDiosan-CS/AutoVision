@@ -136,6 +136,7 @@ class LaneDetectFilter(BaseFilter):
         right_line_segment = None
         if len(white_left_lane_lines) > 0:
             left_line_segment = max(white_left_lane_lines, key=lambda l: l.compute_vertical_distance())
+            left_line_segment = self.extend_line(left_line_segment)
 
         if len(white_right_lane_lines) > 0:
             right_line_segment = max(white_right_lane_lines, key=lambda l: l.compute_euclidean_distance())
@@ -145,6 +146,7 @@ class LaneDetectFilter(BaseFilter):
         if left_line_segment is not None and right_line_segment is None:
             right_line_segment = self.compute_virtual_right_lane(self.camera_width_in_cm, self.lane_width_in_pixels,
                                                                  left_line_segment, th_cm=12)
+
             right_line_virtual = True
 
         left_line_virtual = False
@@ -154,15 +156,9 @@ class LaneDetectFilter(BaseFilter):
             left_line_virtual = True
 
         if left_line_segment and right_line_segment:
-            half_lane_distance = self.lane_width_in_pixels / 2
+            half_lane_distance = (right_line_segment.lower_x - left_line_segment.lower_x) / 2
             dist_to_left_lane = self.width / 2 - left_line_segment.lower_x
             data.lateral_offset = (dist_to_left_lane - half_lane_distance) / half_lane_distance
-
-        if left_line_segment:
-            left_line_segment = self.extend_line(left_line_segment)
-
-        if right_line_segment:
-            right_line_segment = self.extend_line(right_line_segment)
 
         lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
             white_horizontal_lines,
@@ -186,9 +182,6 @@ class LaneDetectFilter(BaseFilter):
         data.horizontal_lines = horiz_line_objects
 
         if left_line_segment and right_line_segment:
-            # print("Left line slope: ", np.degrees(left_line_segment.slope), "Right line slope: ", np.degrees(
-            # right_line_segment.slope), "Sum in degrees: ", np.degrees(left_line_segment.slope +
-            # right_line_segment.slope))
             data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
         if self.visualize:
             visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
