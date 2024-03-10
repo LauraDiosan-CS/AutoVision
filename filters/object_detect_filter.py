@@ -53,8 +53,8 @@ class ObjectDetectionFilter(BaseFilter):
 
 
 def get_distance_from_realsense(depth_frame, bbox_list):
-    xscaling = 0.3333333333
-    yscaling = 0.4444444444
+    xscaling = 0.5
+    yscaling = 0.6666666666
     x = int((bbox_list[0] + bbox_list[2]) / 2 * xscaling)
     y = int((bbox_list[1] + bbox_list[3]) / 2 * yscaling)
     return depth_frame[y, x]
