@@ -53,8 +53,8 @@ class ObjectDetectionFilter(BaseFilter):
 
 
 def get_distance_from_realsense(depth_frame, bbox_list):
-    xscaling = 0.5
-    yscaling = 0.6666666666
+    xscaling = 640 / 1280
+    yscaling = 480 / 720
     x = int((bbox_list[0] + bbox_list[2]) / 2 * xscaling)
     y = int((bbox_list[1] + bbox_list[3]) / 2 * yscaling)
     return depth_frame[y, x]
@@ -69,7 +69,7 @@ class SignsDetect(ObjectDetectionFilter):
             self.model.cuda()
 
         yolo_results = self.model(data.frame)
-        data.traffic_signs = self.pre_process_result(yolo_results[0], data)
+        data.traffic_signs = self.pre_process_result(yolo_results[0], data, 0.3)
         data.frame = yolo_results[0].plot()
 
         return super().process(data)

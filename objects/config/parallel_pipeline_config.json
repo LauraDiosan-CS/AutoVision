@@ -1,7 +1,7 @@
 [
     {
         "signs_detect": {
-            "model": "best_signs_current.pt",
+            "model": "best_signs_close.pt",
             "visualize": true
         }
     },

@@ -203,8 +203,8 @@ class LaneDetectFilter(BaseFilter):
 
         # If the distance between the upper points is less than the threshold
         if dist_between_upper_points < th_px:  # we are turning left
-            right_lower_x = left_line_segment.lower_x + lane_width_in_pixels - 350
-            right_upper_x = left_line_segment.upper_x + lane_width_in_pixels - 350
+            right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
+            right_upper_x = left_line_segment.upper_x + lane_width_in_pixels
         else:  # we are going straight
             right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
             right_upper_x = right_lower_x - x_distance_between_left_line_endings
@@ -223,8 +223,8 @@ class LaneDetectFilter(BaseFilter):
         # If the distance between the upper points is less than the threshold
         if dist_between_upper_points < th_px:
             # we are turning left
-            left_upper_x = right_line_segment.upper_x - lane_width_in_pixels + 350
-            left_lower_x = right_line_segment.lower_x - lane_width_in_pixels + 350
+            left_upper_x = right_line_segment.upper_x - lane_width_in_pixels
+            left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
         else:  # we are going straight
             left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
             left_upper_x = left_lower_x + x_distance_between_right_line_endings

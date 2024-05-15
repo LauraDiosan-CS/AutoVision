@@ -2,12 +2,13 @@ class Config:
     models_dir_path = 'objects/models/'
     videos_dir = 'videos'
     recordings_dir = 'videos/recordings'
-    pipeline_config_path = 'objects/config/lane_detect_config.json'
+    pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
+    #pipeline_config_path = 'objects/config/lane_detect_config.json'
     roi_config_path = 'objects/config/roi.json'
-    video_name = 'qualifiers_9_720.mp4'
+    video_name = 'live_720'
     visualize_only_final = False
     save_video = True
-    http_connection_failed_limit = 0
+    http_connection_failed_limit = 1000000
     http_timeout = 5
     fps = 15
     width = 1280
