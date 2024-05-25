@@ -1,7 +1,7 @@
 import os
+import pickle
 import time
 from datetime import datetime
-from queue import Empty
 
 import cv2
 import numpy as np
@@ -10,11 +10,12 @@ import torch.multiprocessing as mp
 from config import Config
 from controllers.controller import Controller
 from helpers.helpers import save_frames, Timer, initialize_config
+from helpers.shared_memory import SharedMemoryReader, SharedMemoryWriter
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
 from objects.types.save_info import SaveInfo
 
-import pyrealsense2 as rs
+# import pyrealsense2 as rs
 
 
 def live_camera_process(terminate_flag: mp.Value, save_enabled_flag: mp.Value, in_pipes: list[mp.Pipe]):
@@ -130,84 +131,84 @@ def camera_process(terminate_flag: mp.Value, save_enabled_flag: mp.Value, in_pip
 
 
 class MultiProcessingManager(mp.Process):
-    def __init__(self, viz_pipe: mp.Pipe, terminate_flag: mp.Value, live_record: bool=False):
+    def __init__(self, keep_running: mp.Value):
         super().__init__()
-        self.live_record = live_record
-        self.save_enabled = mp.Value('b', Config.save_video)
-        self.terminate_flag = terminate_flag
+        self.keep_running = keep_running
         self.camera_term_flag = mp.Value('b', False)
 
-        self.viz_pipe = viz_pipe
         self.http_connection_failed_count = 0
 
         self.parallel_processes = []
         self.controller_process = None
         self.controller_pipe = None
-        self.camera_process = None
-        self.output_queue = None
 
     def run(self):
+        print("Starting MultiProcessingManager")
         parallel_config, video_info, video_rois = initialize_config()
 
-        self.in_pipes = [mp.Pipe(duplex=False) for _ in parallel_config]
-
-        if self.live_record:
-            self.camera_process = mp.Process(target=live_camera_process, args=[self.camera_term_flag, self.save_enabled,
-                                                                               [pipe[1] for pipe in self.in_pipes]])
-        else:
-            self.camera_process = mp.Process(target=camera_process, args=[self.camera_term_flag, self.save_enabled,
-                                                                          [pipe[1] for pipe in self.in_pipes]])
-        self.camera_process.start()
-
-        self.output_queue = mp.Queue()
-
-        index = 0
-        for config, in_pipe in zip(parallel_config, self.in_pipes):
-            process = SequentialFilterProcess(config, in_pipe[0], self.output_queue, process_name=f"SFP_{index}")
-            process.start()
-            self.parallel_processes.append(process)
-            index += 1
+        # if self.live_record:
+        #     self.camera_process = mp.Process(target=live_camera_process, args=[self.camera_term_flag, self.save_enabled,
+        #                                                                        [pipe[1] for pipe in self.in_pipes]])
+        # else:
+        #     self.camera_process = mp.Process(target=camera_process, args=[self.camera_term_flag, self.save_enabled,
+        #                                                                   [pipe[1] for pipe in self.in_pipes]])
+        # self.camera_process.start()
 
         self.controller_pipe, controller_pipe_child = mp.Pipe()
         self.controller_process = Controller(controller_pipe_child)
         self.controller_process.start()
 
+
+        process_names = [f"SFP_{index}" for index in range(len(parallel_config))]
+        shared_memory_readers = [SharedMemoryReader(topic=process_name, size=100 * 1024 * 1024, create=True) for process_name in process_names]
+
+        for (index, config) in enumerate(parallel_config):
+            process = SequentialFilterProcess(filter_configuration=config,
+                                              process_name=process_names[index],
+                                              keep_running=self.keep_running)
+            process.start()
+            self.parallel_processes.append(process)
+
+
+        print("Creating shared memory writer")
+        viz_memory_writer = SharedMemoryWriter(topic=Config.visualizer_shared_memory_name, create=False, size=100 * 1024 * 1024)
+        print("Shared memory writer created")
         current_data = PipeData(frame=None, depth_frame=None, unfiltered_frame=None, last_touched_process="None")
 
-        while True:
-            print(f"Processed Frames Queue size: {self.output_queue.qsize()}")
+        while not self.keep_running.value:
 
-            try:
-                data: PipeData = self.output_queue.get(timeout=1)
-            except Empty:  # If the queue is empty, continue to make sure the terminate flag is checked
-                pass
+            for reader in shared_memory_readers:
+                pipe_data_bytes = reader.read()
+                while pipe_data_bytes is None:
+                    if not self.keep_running.value:
+                        self.join_all_processes()
+                        return
+                    time.sleep(0.01)
+                    pipe_data_bytes = reader.read()
 
-            if self.terminate_flag.value:
-                self.join_all_processes()
-                break
+                pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
-            with Timer(f"Frame Processing Loop for {current_data.last_touched_process}", min_print_time=0.01):
+                with Timer(f"Frame Processing Loop for {current_data.last_touched_process}", min_print_time=0.01):
 
-                if current_data.last_touched_process != "None":
-                    current_data.merge(data)
-                else:
-                    current_data = data
+                    if current_data.last_touched_process != "None":
+                        current_data.merge(pipe_data)
+                    else:
+                        current_data = pipe_data
 
-                self.controller_pipe.send(current_data)
+                    self.controller_pipe.send(current_data)
 
-                self.viz_pipe.send(current_data)
-        print("Exiting MultiProcessingManager")
+                    viz_memory_writer.write(pickle.dumps(current_data, protocol=pickle.HIGHEST_PROTOCOL))
+
+        self.join_all_processes()
 
     def join_all_processes(self):
-        self.save_enabled.value = False  # Stop saving
         self.controller_pipe.send("STOP")  # Stop the controller process
-        for pipe in self.in_pipes:
-            pipe[1].send("STOP")
-
         print("Joining Controller process")
         self.controller_process.join()
         print("Controller process joined")
 
+        # for keep_running in self.keep_running:
+        #     keep_running.value = False
         print("Joining parallel processes")
         for process in self.parallel_processes:
             print(f"Joining {process.name}")
@@ -215,9 +216,10 @@ class MultiProcessingManager(mp.Process):
             process.terminate()
         print("All parallel processes joined")
 
-        print("Setting camera term flag")
-        self.camera_term_flag.value = True  # Terminate the camera process
-        print("Joining Camera process")
-        self.camera_process.terminate()
+        # print("Setting camera term flag")
+        # self.camera_term_flag.value = True  # Terminate the camera process
+        # print("Joining Camera process")
+        # self.camera_process.terminate()
         # self.camera_process.join()
-        print("Camera process joined")
+        # print("Camera process joined")
+        print("Exiting MultiProcessingManager")

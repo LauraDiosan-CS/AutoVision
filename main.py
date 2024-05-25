@@ -1,16 +1,18 @@
 import argparse
 import os
+import pickle
+import time
 from datetime import datetime
 
 import cv2
 from config import Config
 from filters.visualizer import Visualizer
 from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
-from helpers.shared_memory import SharedMemoryWriter
+from helpers.shared_memory import SharedMemoryWriter, SharedMemoryReader
 from multiprocessing_manager import MultiProcessingManager
+from objects.pipe_data import PipeData
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoRois, VideoInfo
-from multiprocessing import shared_memory
 import multiprocessing as mp
 
 
@@ -26,7 +28,7 @@ class VideoReaderProcess(mp.Process):
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.height)
 
-        shared_mem = SharedMemoryWriter(topic=Config.video_feed_shared_memory_name, size=Config.width * Config.height * 5)
+        shared_mem = SharedMemoryWriter(topic=Config.video_feed_shared_memory_name, size=Config.width * Config.height * 5, create=True)
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -39,17 +41,21 @@ class VideoReaderProcess(mp.Process):
 
 def main():
     mp.set_start_method('spawn')
-    mp.set_sharing_strategy('file_system')
+    # mp.set_sharing_strategy('file_system')
 
     video_reader_process = VideoReaderProcess()
     video_reader_process.start()
 
-    viz_pipe, viz_pipe_mp_manager = mp.Pipe()
-    mp_manager_terminate_flag = mp.Value('b', False)
+    shared_memory_reader = SharedMemoryReader(topic=Config.visualizer_shared_memory_name, create=True, size= 100 * 1024 * 1024)
 
-    mp_manager = MultiProcessingManager(viz_pipe_mp_manager, mp_manager_terminate_flag)
+    mp_manager_keep_running = mp.Value('b', True)
+
+    mp_manager = MultiProcessingManager(mp_manager_keep_running)
 
     mp_manager.start()
+
+    time.sleep(1)
+
 
     save_queue = None
     save_process = None
@@ -80,19 +86,23 @@ def main():
     replay_speed = 1
     frames_to_skip = 0
 
-    viz_pipe.recv()  # Wait for the first frame to be processed
+
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     while True:
         # print("Visualize Queue size : ", viz_pipe.qsize())
-        data = viz_pipe.recv()
+        pipe_data_bytes = shared_memory_reader.read()
+        if pipe_data_bytes is None:
+            continue
+
+        pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
         with Timer("Main Process Loop"):
             if Config.apply_visualizer:
-                visualized_frame = data_visualizer.draw_frame_based_on_data(data)
+                visualized_frame = data_visualizer.draw_frame_based_on_data(pipe_data)
 
-            if data.processed_frames is not None and len(data.processed_frames) > 0:
-                squashed_frames = sum(data.processed_frames.values(), [])
+            if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
+                squashed_frames = sum(pipe_data.processed_frames.values(), [])
                 squashed_frames.append(visualized_frame)
                 final_img = stack_images_v2(1, squashed_frames)
             else:
@@ -130,7 +140,7 @@ def main():
 
     cv2.destroyAllWindows()
 
-    mp_manager_terminate_flag.value = True
+    mp_manager_keep_running.value = False
     print("Initiating Termination of MultiProcessingManager")
 
     if save_queue is not None and save_process is not None:

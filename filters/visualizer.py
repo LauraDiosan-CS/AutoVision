@@ -47,7 +47,7 @@ class Visualizer:
         # drawing horizontal lines
         # data = self.filter(data)
 
-        # draw a horizontal ine at a specific height
+        # draw a horizontal line at a specific height
         cv2.line(frame, (0, self.height // 2), (frame.shape[1], self.height // 2), color=(255, 255, 255), thickness=3)
 
         # drawing signs info

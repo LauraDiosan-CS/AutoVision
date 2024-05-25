@@ -2,7 +2,7 @@ class Config:
     models_dir_path = 'objects/models/'
     videos_dir = 'videos'
     recordings_dir = 'videos/recordings'
-    pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
+    pipeline_config_path = 'objects/config/lane_detect_config.json'
     roi_config_path = 'objects/config/roi.json'
     video_name = 'qualifiers_5_720.mp4'
     apply_visualizer = True
@@ -15,6 +15,7 @@ class Config:
     height = 720
     command_url = 'http://10.0.0.2:8080/control'
     video_feed_shared_memory_name = "video_feed"
+    visualizer_shared_memory_name = "visualizer"
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")
