@@ -3,18 +3,46 @@ import os
 from datetime import datetime
 
 import cv2
-import torch.multiprocessing as mp
 from config import Config
 from filters.visualizer import Visualizer
 from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
+from helpers.shared_memory import SharedMemoryWriter
 from multiprocessing_manager import MultiProcessingManager
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoRois, VideoInfo
+from multiprocessing import shared_memory
+import multiprocessing as mp
+
+
+
+
+class VideoReaderProcess(mp.Process):
+    def __init__(self):
+        super().__init__()
+        self.video_path = str(os.path.join(Config.videos_dir, Config.video_name))
+
+    def run(self):
+        cap = cv2.VideoCapture(self.video_path)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.height)
+
+        shared_mem = SharedMemoryWriter(topic=Config.video_feed_shared_memory_name, size=Config.width * Config.height * 5)
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            shared_mem.write(frame.tobytes())
+
+        cap.release()
 
 
 def main():
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
+
+    video_reader_process = VideoReaderProcess()
+    video_reader_process.start()
 
     viz_pipe, viz_pipe_mp_manager = mp.Pipe()
     mp_manager_terminate_flag = mp.Value('b', False)
@@ -52,7 +80,7 @@ def main():
     replay_speed = 1
     frames_to_skip = 0
 
-    viz_pipe.recv() # Wait for the first frame to be processed
+    viz_pipe.recv()  # Wait for the first frame to be processed
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     while True:
@@ -75,7 +103,6 @@ def main():
             if Config.save_processed_video and save_queue is not None:
                 print("Processed Save Queue size : ", save_queue.qsize())
                 save_queue.put(visualized_frame)
-
 
             if replay_speed < 0:
                 wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
@@ -115,7 +142,6 @@ def main():
     print("Joining MultiProcessingManager")
     mp_manager.terminate()
     print("MultiProcessingManager joined")
-
 
 
 def update_config(config, args):

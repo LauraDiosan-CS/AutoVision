@@ -14,6 +14,7 @@ class Config:
     width = 1280
     height = 720
     command_url = 'http://10.0.0.2:8080/control'
+    video_feed_shared_memory_name = "video_feed"
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")
