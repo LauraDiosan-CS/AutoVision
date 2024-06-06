@@ -5,7 +5,7 @@ from datetime import datetime
 import cv2
 import torch.multiprocessing as mp
 from config import Config
-from filters.visualizer import Visualizer
+from filters.draw_filter import Visualizer
 from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
 from multiprocessing_manager import MultiProcessingManager
 from objects.types.save_info import SaveInfo

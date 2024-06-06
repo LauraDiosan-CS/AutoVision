@@ -8,7 +8,7 @@ import cv2
 import ripc
 
 from config import Config
-from filters.visualizer import Visualizer
+from filters.draw_filter import DrawFilter
 from helpers.ControlledProcess import ControlledProcess
 from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
 from ripc import SharedMemoryWriter, SharedMemoryReader
@@ -57,9 +57,9 @@ def main():
     mp.set_start_method('spawn')
     # mp.set_sharing_strategy('file_system')
 
-    # video_reader_process = VideoReaderProcess()
-    # video_reader_process.start()
-    ripc.V4lSharedMemoryWriter('path', Config.width, "video_name")
+    video_reader_process = VideoReaderProcess()
+    video_reader_process.start()
+    # ripc.V4lSharedMemoryWriter('path', Config.width, "video_name")
 
     mp_manager_keep_running = mp.Value('b', True)
     mp_manager = MultiProcessingManager(mp_manager_keep_running)
@@ -91,7 +91,7 @@ def main():
     video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
                            width=Config.width, video_rois=video_rois)
 
-    data_visualizer = Visualizer(video_info=video_info)
+    draw_filter = DrawFilter(video_info=video_info)
 
     replay_speed = 1
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
@@ -103,7 +103,7 @@ def main():
 
             with Timer("Main Process Loop"):
                 if Config.apply_visualizer:
-                    visualized_frame = data_visualizer.draw_frame_based_on_data(pipe_data)
+                    visualized_frame = draw_filter.process(pipe_data)
 
                 if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
                     squashed_frames = sum(pipe_data.processed_frames.values(), [])
@@ -132,14 +132,14 @@ def main():
             draw_rois_and_wait(visualized_frame, video_rois)
             cv2.waitKey(0)
         elif key & 0xFF == ord('s'):
-            save_dir_path = os.path.join(os.getcwd(), Config.train_dir)
+            save_dir_path = os.path.join(os.getcwd(), Config.screenshot_dir)
             if not os.path.exists(save_dir_path):
                 os.makedirs(save_dir_path)
 
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
             screenshot_name = f'{Config.video_name}_{timestamp}.jpg'
             screenshot_path = os.path.join(save_dir_path, screenshot_name)
-            cv2.imwrite(screenshot_path, frame)
+            cv2.imwrite(screenshot_path, visualized_frame)
         elif key & 0xFF == ord('+'):
             replay_speed += 1
             if replay_speed == 0:
