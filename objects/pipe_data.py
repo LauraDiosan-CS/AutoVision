@@ -1,14 +1,17 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
+
+import numpy as np
+
 from objects.types.road_info import RoadObject, RoadMarkings
 
 
 @dataclass(slots=True)
 class PipeData:
-    frame: any
-    depth_frame: any
-    unfiltered_frame: any
-    processed_frames: Dict[str, List[any]] = field(default_factory=dict)
+    frame: np.array
+    depth_frame: np.array
+    unfiltered_frame: np.array
+    processed_frames: Dict[str, List[np.array]] = field(default_factory=dict)
     last_touched_process: str = ""
     road_markings: Optional[RoadMarkings] = None
     heading_error: Optional[float] = None

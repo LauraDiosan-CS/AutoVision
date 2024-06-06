@@ -13,9 +13,11 @@ class Config:
     fps = 15
     width = 1280
     height = 720
-    command_url = 'http://10.0.0.2:8080/control'
-    video_feed_shared_memory_name = "video_feed"
-    visualizer_shared_memory_name = "visualizer"
+    image_size = width * height * 3
+    pipe_memory_size = image_size * 10
+    command_url = None  # 'http://10.0.0.2:8080/control'
+    video_feed_memory_name = "video_feed"
+    composite_pipe_memory_name = "visualizer"
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")

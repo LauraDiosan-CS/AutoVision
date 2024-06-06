@@ -1,13 +1,17 @@
 import pickle
 import time
+import numpy as np
 
 import multiprocessing as mp
 
 from filters.base_filter import BaseFilter
-from helpers.shared_memory import SharedMemoryReader, SharedMemoryWriter
+from ripc import SharedMemoryReader, SharedMemoryWriter
 from config import Config
+from helpers.ControlledProcess import ControlledProcess
+from objects.pipe_data import PipeData
 
-class SequentialFilterProcess(mp.Process):
+
+class SequentialFilterProcess(ControlledProcess):
     __slots__ = ['filter_configuration', 'keep_running']
 
     def __init__(self, filter_configuration: list[BaseFilter], process_name: str, keep_running: mp.Value):
@@ -16,23 +20,24 @@ class SequentialFilterProcess(mp.Process):
         self.keep_running = keep_running
 
     def run(self):
-        memory_reader = SharedMemoryReader(topic=Config.video_feed_shared_memory_name, create=False)
-        memory_writer = SharedMemoryWriter(topic=self.name, create=False)
+        memory_writer = SharedMemoryWriter(name=self.name, size=Config.pipe_memory_size)
+        self.finish_setup()
+        video_feed = SharedMemoryReader(name=Config.video_feed_memory_name)
 
         while self.keep_running:
-            frame_as_bytes = memory_reader.read()
+            frame_as_bytes = video_feed.read_in_place(ignore_same_version=True)
             while frame_as_bytes is None:
                 if not self.keep_running.value:
                     print(f"Exiting {self.name}")
                     return
                 time.sleep(0.01)
-                frame_as_bytes = memory_reader.read()
+                frame_as_bytes = video_feed.read_in_place(ignore_same_version=True)
 
             frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
 
             data = PipeData(frame=frame,
                             depth_frame=None,
-                            unfiltered_frame=frame.copy())
+                            unfiltered_frame=frame)
 
             # last_data.last_touched_process = self.name
             for filter in self.filter_configuration:
@@ -42,18 +47,3 @@ class SequentialFilterProcess(mp.Process):
             memory_writer.write(data_as_bytes)
 
         print(f"Exiting {self.name}")
-
-
-# class SequentialFilterProcess(mp.Process):
-#     def __init__(self, filter_configuration: list[BaseFilter], in_queue: mp.Queue, out_queue: mp.Queue):
-#         super().__init__()
-#         self.in_queue = in_queue
-#         self.out_queue = out_queue
-#         self.filter_configuration = filter_configuration
-#
-#     def run(self):
-#         while True:
-#             data = self.in_queue.get()
-#             for filter in self.filter_configuration:
-#                 data = filter.process(data)
-#             self.out_queue.put(data)
