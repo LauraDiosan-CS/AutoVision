@@ -1,13 +1,15 @@
 from objects.pipe_data import PipeData
 from objects.types.line_segment import LineSegment
+from objects.types.road_info import RoadObject
 from objects.types.video_info import VideoInfo
+from filters.base_filter import BaseFilter
 import cv2
 import numpy as np
 
 
-def draw_sign(frame, sign):
-    top_left = (int(sign.bbox[0]), int(sign.bbox[1]))
-    bottom_right = (int(sign.bbox[2]), int(sign.bbox[3]))
+def draw_bbox(frame, bbox):
+    top_left = (int(bbox[0]), int(bbox[1]))
+    bottom_right = (int(bbox[2]), int(bbox[3]))
 
     cv2.rectangle(frame, top_left, bottom_right, color=(0, 255, 0), thickness=3)
 
@@ -25,52 +27,30 @@ def draw_horizontals(frame, lines, right_int, center_int):
         cv2.circle(frame, p, radius=3, color=(0, 0, 255))
 
 
-class Visualizer:
+class DrawFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo):
-        self.width = video_info.width
-        self.height = video_info.height
+        super().__init__(video_info=video_info, visualize=True)
         self.car_position = (int(self.width / 2), self.height)
         self.center_line = None
         self.right_line = None
         self.stop_lines = None
 
-    def draw_frame_based_on_data(self, data: PipeData):
+    def process(self, data: PipeData) -> PipeData:
         if data.unfiltered_frame is None:
             return data
         frame = data.unfiltered_frame.copy()
-        traffic_signs = data.traffic_signs
 
         self.draw_car_position(frame, self.car_position)
 
         self.draw_command(frame, data.command)
 
-        # drawing horizontal lines
-        # data = self.filter(data)
-
-        # draw a horizontal line at a specific height
-        cv2.line(frame, (0, self.height // 2), (frame.shape[1], self.height // 2), color=(255, 255, 255), thickness=3)
+        # draw a horizontal ine at a specific height
+        cv2.line(frame, (0, 600), (frame.shape[1], 600), color=(255, 255, 255), thickness=3)
 
         # drawing signs info
-        signs = []
-        i = 0
-        if len(data.traffic_signs):
-            for sign in traffic_signs:
-                draw_sign(frame, sign)
-
-                signs_dict = {'Sign': sign.label, 'Confidence': sign.conf, 'Estimated Distance': sign.distance}
-
-                signs.append(signs_dict)
-
-            sorted_signs = sorted(signs, key=lambda x: float(x['Estimated Distance']))
-
-            for sign in sorted_signs:
-                text = ''
-                for key in sign.keys():
-                    text += f'{key}: {sign[key]},'
-
-                for string in text.split(','):
-                    self.put_text(frame, string, position=(0, 130 + i), color=(255, 0, 0))
-                    i += 20
+        self.visualize_road_objects(frame, data.traffic_signs, initial_position=(0, 130), color=(0, 255, 255))
+        self.visualize_road_objects(frame, data.traffic_lights, initial_position=(0, 250), color=(0, 255, 255))
+        self.visualize_road_objects(frame, data.pedestrians, initial_position=(0, 400), color=(0, 255, 255))
 
         # drawing lane info
         if data.road_markings is not None:
@@ -100,11 +80,30 @@ class Visualizer:
                 if data.heading_error is not None:
                     self.put_text(frame, f'Heading Error: {data.heading_error: .2f} degrees')
                 if data.lateral_offset is not None:
-                    self.put_text(frame, f'Lateral Offset: {data.lateral_offset: .2f}', color=(0,0,255), position=(0, 50))
+                    self.put_text(frame, f'Lateral Offset: {data.lateral_offset: .2f}', color=(0, 0, 255),
+                                  position=(0, 50))
         else:
             self.put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
 
-        return frame
+        data.frame = frame
+
+        return super().process(data)
+
+    @staticmethod
+    def visualize_road_objects(frame, road_objects: list[RoadObject], color=(255, 255, 255), initial_position=(0, 130)):
+        # Sort the traffic signs by distance
+        sorted_objects = sorted(road_objects, key=lambda obj: obj.distance)
+
+        # Display each sign's information on the frame
+        for object in sorted_objects:
+            draw_bbox(frame, object.bbox)
+
+            # Construct sign information text
+            obj_info = ', '.join([f'{key}: {value}' for key, value in object._asdict().items() if key != 'bbox'])
+
+            # Display sign information on the frame
+            cv2.putText(frame, obj_info, initial_position, cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            initial_position = (initial_position[0], initial_position[1] + 20)
 
     @staticmethod
     def put_text(frame, text, position=(0, 100), font=cv2.FONT_HERSHEY_SIMPLEX,
@@ -122,25 +121,25 @@ class Visualizer:
 
         cv2.addWeighted(frame, 1, lane_roi_mask, alpha, 0, frame)
 
-    def filter(self, data: PipeData) -> PipeData:
-        image = data.frame.copy()
-        gray = cv2.cvtColor(data.frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
-        edges = cv2.Canny(blurred, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        image = cv2.drawContours(image, contours, -1, (0, 255, 75), 2)
-        data.add_processed_frame(image)
-
-        return data
+    # def filter(self, data):
+    #     image = data.frame.copy()
+    #     gray = cv2.cvtColor(data.frame, cv2.COLOR_BGR2GRAY)
+    #     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    #
+    #     edges = cv2.Canny(blurred, 50, 150)
+    #     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #
+    #     image = cv2.drawContours(image, contours, -1, (0, 255, 75), 2)
+    #     data.processed_frames.append(image)
+    #
+    #     return data
 
     @staticmethod
     def draw_lane_endpoints(frame, center_line: LineSegment, right_line: LineSegment, color_center=(255, 0, 0),
                             color_right=(0, 255, 0),
                             radius=10):
-        Visualizer.draw_points(frame, [(center_line.upper_x, center_line.upper_y)], color=color_center, radius=radius)
-        Visualizer.draw_points(frame, [(right_line.upper_x, right_line.upper_y)], color=color_right, radius=radius)
+        DrawFilter.draw_points(frame, [(center_line.upper_x, center_line.upper_y)], color=color_center, radius=radius)
+        DrawFilter.draw_points(frame, [(right_line.upper_x, right_line.upper_y)], color=color_right, radius=radius)
 
     @staticmethod
     def draw_correct_path(frame, car_position, upper_lane_center, color=(127, 127, 255), thickness=3):
@@ -174,7 +173,7 @@ class Visualizer:
 
     @staticmethod
     def draw_car_position(frame, car_position, color=(2, 135, 247), radius=20):
-        Visualizer.draw_points(frame, [car_position], color=color, radius=radius)
+        DrawFilter.draw_points(frame, [car_position], color=color, radius=radius)
 
     def draw_command(self, frame, command: str):
-        self.put_text(frame, f'Command: {command}', position=(0, 20), color=(0, 255, 0))
+        self.put_text(frame, f'Command: {command}', position=(0, 20), color=(0, 0, 255))

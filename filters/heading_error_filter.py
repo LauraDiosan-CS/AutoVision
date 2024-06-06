@@ -17,10 +17,6 @@ class HeadingErrorFilter(BaseFilter):
         right_line: LineSegment = data.road_markings.right_line
 
         if center_line and right_line:
-            lane_distance = right_line.lower_x - center_line.lower_x
-            half_lane_distance = lane_distance / 2
-            dist_to_left_lane = self.width / 2 - center_line.lower_x
-            data.lateral_offset = (dist_to_left_lane - half_lane_distance) / half_lane_distance
 
             # distance_to_right_lane = right_line.lower_x - self.width // 2
             # distance_to_left_lane = self.width // 2 - center_line.lower_x
@@ -47,6 +43,6 @@ class HeadingErrorFilter(BaseFilter):
             and needs to  move to the left to correct its position, hence the steering angle needs to be negative'''
             if direction_vector[0] < 0:
                 heading_error = -heading_error
-            data.heading_error = heading_error
+            data.heading_error = -heading_error
 
         return super().process(data)

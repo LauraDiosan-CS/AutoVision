@@ -131,6 +131,15 @@ def main():
         elif key & 0xFF == ord('x'):
             draw_rois_and_wait(visualized_frame, video_rois)
             cv2.waitKey(0)
+        elif key & 0xFF == ord('s'):
+            save_dir_path = os.path.join(os.getcwd(), Config.train_dir)
+            if not os.path.exists(save_dir_path):
+                os.makedirs(save_dir_path)
+
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
+            screenshot_name = f'{Config.video_name}_{timestamp}.jpg'
+            screenshot_path = os.path.join(save_dir_path, screenshot_name)
+            cv2.imwrite(screenshot_path, frame)
         elif key & 0xFF == ord('+'):
             replay_speed += 1
             if replay_speed == 0:

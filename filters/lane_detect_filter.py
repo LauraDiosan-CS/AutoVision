@@ -1,7 +1,7 @@
 import numpy as np
 from objects.pipe_data import PipeData
 from objects.types.line_segment import LineSegment
-from objects.types.road_info import RoadMarkings
+from objects.types.road_info import RoadMarkings, RoadObject
 from objects.types.video_info import VideoInfo
 import cv2
 from filters.base_filter import BaseFilter
@@ -23,7 +23,7 @@ def filter_lines_by_type(hough_line_segments: list[LineSegment], frame_width: in
     return left_lane_lines, right_lane_lines, horizontal_lines
 
 
-def filer_for_white_lines(color_frame, line_segments, threshold=140, num_points=50) -> tuple[
+def filer_for_white_lines(color_frame, line_segments, threshold=135, num_points=50) -> tuple[
     list[LineSegment], list[LineSegment]]:
     white_lines = []
     other_lines = []
@@ -61,7 +61,7 @@ def draw_lines(frame, line_segments_with_colors):
     return frame
 
 
-def visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
+def visualize_hough_lines(data: PipeData, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
                           other_left_lane_lines, other_right_lane_lines, right_line_segment, white_horizontal_lines,
                           white_horizontals_outside_of_lane, white_left_lane_lines, white_right_lane_lines):
     color_mapping_bgr = {
@@ -146,6 +146,7 @@ class LaneDetectFilter(BaseFilter):
         if left_line_segment is not None and right_line_segment is None:
             right_line_segment = self.compute_virtual_right_lane(self.camera_width_in_cm, self.lane_width_in_pixels,
                                                                  left_line_segment, th_cm=12)
+
             right_line_virtual = True
 
         left_line_virtual = False
@@ -153,6 +154,11 @@ class LaneDetectFilter(BaseFilter):
             left_line_segment = self.compute_virtual_left_lane(self.camera_width_in_cm, self.lane_width_in_pixels,
                                                                right_line_segment, th_cm=5)
             left_line_virtual = True
+
+        if left_line_segment and right_line_segment:
+            half_lane_distance = (right_line_segment.lower_x - left_line_segment.lower_x) / 2
+            dist_to_left_lane = self.width / 2 - left_line_segment.lower_x
+            data.lateral_offset = (dist_to_left_lane - half_lane_distance) / half_lane_distance
 
         lane_white_horizontal_lines, white_horizontals_outside_of_lane = self.filter_horizontals_based_on_lane(
             white_horizontal_lines,
@@ -167,10 +173,15 @@ class LaneDetectFilter(BaseFilter):
                                           right_line_virtual=right_line_virtual,
                                           )
 
+        horiz_line_objects = [RoadObject(bbox=[[horiz_line_segment.lower_x, horiz_line_segment.lower_y],
+                                               [horiz_line_segment.upper_x, horiz_line_segment.upper_y]],
+                                         label="horiz_line",
+                                         conf=1,
+                                         distance=0) for horiz_line_segment in lane_white_horizontal_lines]
+
+        data.horizontal_lines = horiz_line_objects
+
         if left_line_segment and right_line_segment:
-            # print("Left line slope: ", np.degrees(left_line_segment.slope), "Right line slope: ", np.degrees(
-            # right_line_segment.slope), "Sum in degrees: ", np.degrees(left_line_segment.slope +
-            # right_line_segment.slope))
             data.frame = cv2.cvtColor(data.frame, cv2.COLOR_GRAY2BGR)
         if self.visualize:
             visualize_hough_lines(data, lane_white_horizontal_lines, left_line_segment, other_horizontal_lines,
@@ -184,7 +195,6 @@ class LaneDetectFilter(BaseFilter):
     def compute_virtual_right_lane(self, camera_width_in_cm, lane_width_in_pixels, left_line_segment, th_cm):
         right_lower_y = left_line_segment.lower_y
         right_upper_y = left_line_segment.upper_y
-        right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
 
         x_distance_between_left_line_endings = abs(left_line_segment.upper_x - left_line_segment.lower_x)
 
@@ -193,8 +203,10 @@ class LaneDetectFilter(BaseFilter):
 
         # If the distance between the upper points is less than the threshold
         if dist_between_upper_points < th_px:  # we are turning left
+            right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
             right_upper_x = left_line_segment.upper_x + lane_width_in_pixels
         else:  # we are going straight
+            right_lower_x = left_line_segment.lower_x + lane_width_in_pixels
             right_upper_x = right_lower_x - x_distance_between_left_line_endings
 
         return LineSegment(right_lower_x, right_lower_y, right_upper_x, right_upper_y)
@@ -202,7 +214,6 @@ class LaneDetectFilter(BaseFilter):
     def compute_virtual_left_lane(self, camera_width_in_cm, lane_width_in_pixels, right_line_segment, th_cm):
         left_lower_y = right_line_segment.lower_y
         left_upper_y = right_line_segment.upper_y
-        left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
 
         x_distance_between_right_line_endings = abs(right_line_segment.upper_x - right_line_segment.lower_x)
 
@@ -213,8 +224,10 @@ class LaneDetectFilter(BaseFilter):
         if dist_between_upper_points < th_px:
             # we are turning left
             left_upper_x = right_line_segment.upper_x - lane_width_in_pixels
+            left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
         else:  # we are going straight
-            left_upper_x = left_lower_x + x_distance_between_right_line_endings - 175
+            left_lower_x = right_line_segment.lower_x - lane_width_in_pixels
+            left_upper_x = left_lower_x + x_distance_between_right_line_endings
 
         return LineSegment(left_lower_x, left_lower_y, left_upper_x, left_upper_y)
 
@@ -226,13 +239,12 @@ class LaneDetectFilter(BaseFilter):
                                maxLineGap=max_line_gap)
 
     def filter_horizontals_based_on_lane(self, horizontal_line_segments: list[LineSegment], left_line: LineSegment,
-                                         right_line: LineSegment, num_points=50, threshold_distance=377):
+                                         right_line: LineSegment):
         filtered_horizontals = []
         horizontals_outside_of_lane = []
         for horiz_line_segment in horizontal_line_segments:
             if left_line and right_line:
-                if horiz_line_segment.lower_y < self.max_lane_height:  # if the line is above the lane
-                    print(f"Horizontal line is above the lane {horiz_line_segment.lower_y} > {self.max_lane_height}")
+                if horiz_line_segment.lower_y < 600:  # if the line is above the lane
                     horizontals_outside_of_lane.append(horiz_line_segment)
                     continue
 
