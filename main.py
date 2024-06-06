@@ -103,20 +103,20 @@ def main():
 
             with Timer("Main Process Loop"):
                 if Config.apply_visualizer:
-                    visualized_frame = draw_filter.process(pipe_data)
+                    pipe_data = draw_filter.process(pipe_data)
 
-                if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
-                    squashed_frames = sum(pipe_data.processed_frames.values(), [])
-                    squashed_frames.append(visualized_frame)
+                if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0 and False:
+                    squashed_frames = list(pipe_data.processed_frames.values())
+                    # squashed_frames.append(pipe_data.frame)
                     final_img = stack_images_v2(1, squashed_frames)
                 else:
-                    final_img = visualized_frame
+                    final_img = pipe_data.frame
 
                 cv2.imshow('CarVision', final_img)
 
                 if Config.save_processed_video and save_queue is not None:
                     print("Processed Save Queue size : ", save_queue.qsize())
-                    save_queue.put(visualized_frame)
+                    save_queue.put(pipe_data.frame)
 
         if replay_speed < 0:
             wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
@@ -129,7 +129,7 @@ def main():
         if key & 0xFF == ord('q'):
             break
         elif key & 0xFF == ord('x'):
-            draw_rois_and_wait(visualized_frame, video_rois)
+            draw_rois_and_wait(pipe_data.frame, video_rois)
             cv2.waitKey(0)
         elif key & 0xFF == ord('s'):
             save_dir_path = os.path.join(os.getcwd(), Config.screenshot_dir)
@@ -139,7 +139,7 @@ def main():
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
             screenshot_name = f'{Config.video_name}_{timestamp}.jpg'
             screenshot_path = os.path.join(save_dir_path, screenshot_name)
-            cv2.imwrite(screenshot_path, visualized_frame)
+            cv2.imwrite(screenshot_path, pipe_data.frame)
         elif key & 0xFF == ord('+'):
             replay_speed += 1
             if replay_speed == 0:
