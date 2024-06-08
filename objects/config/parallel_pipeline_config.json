@@ -1,13 +1,31 @@
 [
     {
+        "roi": {
+            "roi_type": "signs",
+            "visualize": false
+        },
         "signs_detect": {
             "model": "best_signs_close.pt",
             "visualize": true
         }
     },
     {
+        "roi": {
+            "roi_type": "traffic_lights",
+            "visualize": false
+        },
         "traffic_light_detect": {
             "model": "best_lights.pt",
+            "visualize": true
+        }
+    },
+    {
+        "roi": {
+            "roi_type": "pedestrians",
+            "visualize": false
+        },
+        "pedestrian_detect": {
+            "model": "best_pedestrian.pt",
             "visualize": true
         }
     },

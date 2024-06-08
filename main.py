@@ -7,9 +7,10 @@ import torch.multiprocessing as mp
 from config import Config
 from helpers.helpers import stack_images_v2, initialize_config, draw_rois_and_wait
 from multiprocessing_manager import MultiProcessingManager
-
+from helpers.timer import timer
 
 def main():
+    # timer.start("app_setup")
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
 
@@ -28,21 +29,26 @@ def main():
     replay_speed = 1
     frames_to_skip = 0
     ret, frame = None, None
-
+    # timer.stop("app_setup")
     while cap.isOpened():
         for i in range(frames_to_skip + 1):
             ret, frame = cap.read()
 
         if not ret:
             continue
+        timer.stop('iteration_start')
+        timer.plot_pie_chart()
+        timer.start('iteration_start')
 
         data = mp_manager.process_frame(frame, apply_draw_filter=True)
 
+        timer.start('show_frame')
         if Config.visualize_only_final:
             cv2.imshow('CarVision', data.frame)
         elif data.processed_frames is not None and len(data.processed_frames) > 0:
             imgStack = stack_images_v2(1, data.processed_frames)
             cv2.imshow('CarVision', imgStack)
+        timer.stop('show_frame')
 
         if replay_speed < 0:
             wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
@@ -58,7 +64,7 @@ def main():
             draw_rois_and_wait(frame, video_rois)
             cv2.waitKey(0)
         elif key & 0xFF == ord('s'):
-            save_dir_path = os.path.join(os.getcwd(), Config.train_dir)
+            save_dir_path = os.path.join(os.getcwd(), Config.recordings_dir)
             if not os.path.exists(save_dir_path):
                 os.makedirs(save_dir_path)
                 

@@ -3,9 +3,9 @@ class Config:
     videos_dir = 'videos'
     recordings_dir = 'videos/recordings'
     pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
-    #pipeline_config_path = 'objects/config/lane_detect_config.json'
+    # pipeline_config_path = 'objects/config/lane_detect_config.json'
     roi_config_path = 'objects/config/roi.json'
-    video_name = 'live_720'
+    video_name = 'qualifiers_1.mp4'
     visualize_only_final = False
     save_video = True
     http_connection_failed_limit = 1000000
@@ -13,7 +13,7 @@ class Config:
     fps = 15
     width = 1280
     height = 720
-    command_url = 'http://10.0.0.2:8080/control'
+    command_url = None #'http://10.0.0.2:8080/control'
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")

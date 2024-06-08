@@ -44,7 +44,6 @@ class PipeData:
         self.pedestrians.extend(other.pedestrians)
         self.horizontal_lines.extend(other.horizontal_lines)
 
-        # Merge processed frames
         self.processed_frames.extend(other.processed_frames)
 
         return self

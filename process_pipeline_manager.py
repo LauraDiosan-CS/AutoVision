@@ -1,9 +1,9 @@
-import time
 import torch.multiprocessing as mp
 
 from behaviour_planner import BehaviourPlanner
 from filters.base_filter import BaseFilter
 from filters.draw_filter import DrawFilter
+from helpers.timer import timer
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
 from objects.types.video_info import VideoInfo
@@ -25,7 +25,7 @@ class ProcessPipelineManager:
             self.parallel_processes.append((process, pipe))
 
     def process_frame(self, data: PipeData, apply_draw_filter=False):
-        start_time = time.time()
+        timer.start('process_frame_parallel')
 
         for process, pipe in self.parallel_processes:
             pipe.send(data)
@@ -33,7 +33,9 @@ class ProcessPipelineManager:
         for process, pipe in self.parallel_processes:
             new_data = pipe.recv()
             data = data.merge(new_data)
+        timer.stop('process_frame_parallel')
 
+        timer.start('behaviour_planner')
         # Perform behavior planning based on processed data
         data.command = self.behaviour_planner.run_iteration(
             traffic_signs=data.traffic_signs,
@@ -41,13 +43,11 @@ class ProcessPipelineManager:
             pedestrians=data.pedestrians,
             horizontal_lines=data.horizontal_lines
         )
+        timer.stop('behaviour_planner')
 
-        end_time = time.time()
-
-        print(f"Parallel execution time: {end_time - start_time} seconds")
-
-
+        timer.start('draw_filter')
         if apply_draw_filter:
             data = self.draw_filter.process(data)
+        timer.stop('draw_filter')
 
         return data
