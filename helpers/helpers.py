@@ -132,7 +132,7 @@ def draw_rois_and_wait(frame, video_rois):
 def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInfo):
     print(f"\nSaving video to: {save_info.video_path}\n")
 
-    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     output_video_writer = cv2.VideoWriter(
         save_info.video_path,
         fourcc, Config.fps,
@@ -145,6 +145,7 @@ def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInf
                 if not save_enabled.value:
                     print("Saving process is stopping")
                     break
+
             frame = save_queue.get(block=True, timeout=2)
             if isinstance(frame, np.ndarray) and frame.flags.writeable:
                 output_video_writer.write(frame)
@@ -161,5 +162,5 @@ def save_frames(save_queue: mp.Queue, save_enabled: mp.Value, save_info: SaveInf
             print("save process received None")
             continue
         output_video_writer.write(frame)
-
+    print("All frames saved")
     output_video_writer.release()

@@ -20,22 +20,26 @@ class ProcessPipelineManager:
 
         for config in parallel_config:
             pipe, subprocess_pipe = mp.Pipe()
-            process = SequentialFilterProcess(config, subprocess_pipe)
+            process = SequentialFilterProcess(config, subprocess_pipe, name=config[-1].__class__.__name__)
             process.start()
             self.parallel_processes.append((process, pipe))
 
     def process_frame(self, data: PipeData, apply_draw_filter=False):
-        timer.start('process_frame_parallel')
+        timer.start('Apply All Filters in Parallel', parent='Process Frame')
 
         for process, pipe in self.parallel_processes:
+            timer.start(f"Process Data {process.name}", parent="Apply All Filters in Parallel")
+            timer.start('Send Data', parent=f'Process Data {process.name}')
             pipe.send(data)
-
+            timer.stop('Send Data')
         for process, pipe in self.parallel_processes:
+            timer.start('Recv Data', parent=f'Process Data {process.name}')
             new_data = pipe.recv()
+            timer.stop('Recv Data')
             data = data.merge(new_data)
-        timer.stop('process_frame_parallel')
+            timer.stop(f'Process Data {process.name}')
+        timer.stop('Apply All Filters in Parallel')
 
-        timer.start('behaviour_planner')
         # Perform behavior planning based on processed data
         data.command = self.behaviour_planner.run_iteration(
             traffic_signs=data.traffic_signs,
@@ -43,11 +47,9 @@ class ProcessPipelineManager:
             pedestrians=data.pedestrians,
             horizontal_lines=data.horizontal_lines
         )
-        timer.stop('behaviour_planner')
 
-        timer.start('draw_filter')
+        timer.start('Draw onto Frame', parent='Process Frame')
         if apply_draw_filter:
             data = self.draw_filter.process(data)
-        timer.stop('draw_filter')
-
+        timer.stop('Draw onto Frame')
         return data

@@ -1,6 +1,5 @@
 from objects.types.road_info import RoadObject
 
-
 class PipeData:
     def __init__(self, frame, depth_frame, unfiltered_frame):
         self.frame = frame

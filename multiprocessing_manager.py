@@ -65,31 +65,27 @@ class MultiProcessingManager:
             data=data,
             apply_draw_filter=apply_draw_filter or self.save_output  # Apply draw filter if saving is enabled
         )
-        timer.start('http_communication')
         self.handle_http_communication(data)
-        timer.stop('http_communication')
-        timer.start('saving')
         if self.save_input and self.save_enabled is not None and self.save_enabled.value:
             self.save_queue.put(data.unfiltered_frame)
         elif self.save_output and self.save_enabled is not None and self.save_enabled.value:
             self.save_queue.put(data.frame)
-        timer.stop('saving')
 
         return data
 
     def handle_http_communication(self, data):
         if Config.command_url and self.http_connection_failed_count < Config.http_connection_failed_limit:
+            print(f"Sending command to car")
             try:
                 json_data = {"action": data.command.value,
                              "heading_error_degrees": data.heading_error,
                              "lateral_error": data.lateral_offset,
                              "observed_acceleration": 0}
                 start_time = time.time()
-                if Config.command_url is not None:
-                    r = self.http_pool.request('POST', Config.command_url,
-                                               headers={'Content-Type': 'application/json'},
-                                               body=json.dumps(json_data),
-                                               timeout=Config.http_timeout)
+                r = self.http_pool.request('POST', Config.command_url,
+                                           headers={'Content-Type': 'application/json'},
+                                           body=json.dumps(json_data),
+                                           timeout=Config.http_timeout)
                 end_time = time.time()
                 print(f"Http success execution time: {end_time - start_time} seconds")
             except Exception as e:

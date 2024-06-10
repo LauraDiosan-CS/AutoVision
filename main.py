@@ -3,14 +3,18 @@ import os
 import datetime
 import cv2
 import torch.multiprocessing as mp
+from matplotlib import pyplot as plt
 
 from config import Config
 from helpers.helpers import stack_images_v2, initialize_config, draw_rois_and_wait
 from multiprocessing_manager import MultiProcessingManager
 from helpers.timer import timer
 
+
 def main():
-    # timer.start("app_setup")
+    timer.start('Overall Timer')
+    timer.start('Setup', parent='Overall Timer')
+
     mp.set_start_method('spawn')
     mp.set_sharing_strategy('file_system')
 
@@ -29,27 +33,31 @@ def main():
     replay_speed = 1
     frames_to_skip = 0
     ret, frame = None, None
-    # timer.stop("app_setup")
+    iteration_counter = 0
+    timer.stop('Setup')
+
     while cap.isOpened():
         for i in range(frames_to_skip + 1):
             ret, frame = cap.read()
+        if ret:
+            timer.start('Iteration', parent='Overall Timer')
+            iteration_counter += 1
 
-        if not ret:
-            continue
-        timer.stop('iteration_start')
-        timer.plot_pie_chart()
-        timer.start('iteration_start')
+            if iteration_counter % Config.fps == 0:
+                timer.plot_pie_charts()
 
-        data = mp_manager.process_frame(frame, apply_draw_filter=True)
+            timer.start('Process Frame', parent='Iteration')
+            data = mp_manager.process_frame(frame, apply_draw_filter=True)
+            timer.stop('Process Frame')
 
-        timer.start('show_frame')
-        if Config.visualize_only_final:
-            cv2.imshow('CarVision', data.frame)
-        elif data.processed_frames is not None and len(data.processed_frames) > 0:
-            imgStack = stack_images_v2(1, data.processed_frames)
-            cv2.imshow('CarVision', imgStack)
-        timer.stop('show_frame')
-
+            timer.start('Display frame', parent='Iteration')
+            if Config.visualize_only_final:
+                cv2.imshow('CarVision', data.frame)
+            elif data.processed_frames is not None and len(data.processed_frames) > 0:
+                imgStack = stack_images_v2(1, data.processed_frames)
+                cv2.imshow('CarVision', imgStack)
+            timer.stop('Display frame')
+        timer.start('Wait User Input', parent='Iteration')
         if replay_speed < 0:
             wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
             frames_to_skip = 0
@@ -67,7 +75,7 @@ def main():
             save_dir_path = os.path.join(os.getcwd(), Config.recordings_dir)
             if not os.path.exists(save_dir_path):
                 os.makedirs(save_dir_path)
-                
+
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
             screenshot_name = f'{Config.video_name}_{timestamp}.jpg'
             screenshot_path = os.path.join(save_dir_path, screenshot_name)
@@ -82,11 +90,18 @@ def main():
             if replay_speed == 0:
                 replay_speed = -1
             print(f"Replay speed: {replay_speed}")
+        timer.stop('Wait User Input')
+        timer.stop('Iteration')
 
+    timer.start('Cleanup', parent='Overall Timer')
     mp_manager.finish_saving()
 
     cap.release()
     cv2.destroyAllWindows()
+    timer.stop('Cleanup')
+    timer.stop('Overall Timer')
+    timer.plot_pie_charts()
+    plt.show()  # Keep the pie chart open
 
 
 def update_config(config, args):
