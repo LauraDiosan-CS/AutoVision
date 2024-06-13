@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import time
+import timerr
 from tqdm import tqdm
 
 current_datetime = time.strftime("%Y%m%d_%H%M", time.localtime())
@@ -97,4 +97,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
