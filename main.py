@@ -6,12 +6,15 @@ from datetime import datetime
 
 import cv2
 import ripc
+from matplotlib import pyplot as plt
 
 from config import Config
 from filters.draw_filter import DrawFilter
 from helpers.ControlledProcess import ControlledProcess
 from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
 from ripc import SharedMemoryWriter, SharedMemoryReader
+
+from helpers.timer import timer
 from multiprocessing_manager import MultiProcessingManager
 from objects.pipe_data import PipeData
 from objects.types.save_info import SaveInfo
@@ -54,6 +57,8 @@ class VideoReaderProcess(ControlledProcess):
 
 
 def main():
+    timer.start('Overall Timer')
+    timer.start('Setup', parent='Overall Timer')
     mp.set_start_method('spawn')
 
     video_reader_process = VideoReaderProcess()
@@ -95,16 +100,24 @@ def main():
     replay_speed = 1
     pipe_data_bytes = None
     frames_to_skip = 0
+    iteration_counter = 0
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
+    timer.stop('Setup')
 
     while True:
         for i in range(frames_to_skip + 1):
             pipe_data_bytes = visualizer_memory.read()
 
         if pipe_data_bytes is not None:
+            iteration_counter += 1
+            timer.start('Vizualisation Loop', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
-            print(f"PipeData with {pipe_data.last_touched_process} took {pipe_data.creation_time - time.time()} seconds from creation to visualizer")
+            if iteration_counter % 2 == 0:
+                timer.plot_pie_charts()
+
+            print(
+                f"PipeData with {pipe_data.last_touched_process} took {pipe_data.creation_time - time.time()} seconds from creation to visualizer")
 
             with Timer("Main Process Loop"):
                 if Config.apply_visualizer:
@@ -122,6 +135,7 @@ def main():
                     print("Processed Save Queue size : ", save_queue.qsize())
                     save_queue.put(pipe_data.frame)
 
+        timer.start('Wait User Input', parent='Iteration')
         if replay_speed < 0:
             wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
             frames_to_skip = 0
@@ -154,7 +168,10 @@ def main():
             if replay_speed == 0:
                 replay_speed = -1
             print(f"Replay speed: {replay_speed}")
+        timer.stop('Wait User Input')
+        timer.stop('Iteration')
 
+    timer.start('Cleanup', parent='Overall Timer')
     cv2.destroyAllWindows()
 
     mp_manager_keep_running.value = False
@@ -169,6 +186,11 @@ def main():
     print("Joining MultiProcessingManager")
     mp_manager.terminate()
     print("MultiProcessingManager joined")
+
+    timer.stop('Cleanup')
+    timer.stop('Overall Timer')
+    timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
+    plt.show()  # Keep the pie chart open
 
 
 def update_config(config, args):
