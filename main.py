@@ -55,7 +55,6 @@ class VideoReaderProcess(ControlledProcess):
 
 def main():
     mp.set_start_method('spawn')
-    # mp.set_sharing_strategy('file_system')
 
     video_reader_process = VideoReaderProcess()
     video_reader_process.start()
@@ -94,20 +93,25 @@ def main():
     draw_filter = DrawFilter(video_info=video_info)
 
     replay_speed = 1
+    pipe_data_bytes = None
+    frames_to_skip = 0
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
 
     while True:
-        pipe_data_bytes = visualizer_memory.read()
+        for i in range(frames_to_skip + 1):
+            pipe_data_bytes = visualizer_memory.read()
+
         if pipe_data_bytes is not None:
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
+
+            print(f"PipeData with {pipe_data.last_touched_process} took {pipe_data.creation_time - time.time()} seconds from creation to visualizer")
 
             with Timer("Main Process Loop"):
                 if Config.apply_visualizer:
                     pipe_data = draw_filter.process(pipe_data)
 
-                if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0 and False:
-                    squashed_frames = list(pipe_data.processed_frames.values())
-                    # squashed_frames.append(pipe_data.frame)
+                if pipe_data.processed_frames is not None:
+                    squashed_frames = sum(pipe_data.processed_frames.values(), [])
                     final_img = stack_images_v2(1, squashed_frames)
                 else:
                     final_img = pipe_data.frame

@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
@@ -21,6 +22,8 @@ class PipeData:
     pedestrians: List[RoadObject] = field(default_factory=list)
     horizontal_lines: List[RoadObject] = field(default_factory=list)
     command: str = ""
+    pipeline_execution_time: float = 0
+    creation_time: float = time.time()
 
     def add_processed_frame(self, frame):
         """
