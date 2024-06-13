@@ -2,8 +2,8 @@ class Config:
     models_dir_path = 'objects/models/'
     videos_dir = 'videos'
     recordings_dir = 'videos/recordings'
-    # pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
-    pipeline_config_path = 'objects/config/lane_detect_config.json'
+    pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
+    # pipeline_config_path = 'objects/config/lane_detect_config.json'
     roi_config_path = 'objects/config/roi.json'
     video_name = 'qualifiers_1.mp4'
     visualize_only_final = False

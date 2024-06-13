@@ -14,6 +14,7 @@ class PipeData:
         self.horizontal_lines: list[RoadObject] = []
         self.command: str = ""
         self.processed_frames = []
+        self.pipeline_execution_time = 0
 
     def __str__(self):
         return (f"PipeData(..., heading_error={self.heading_error}, "

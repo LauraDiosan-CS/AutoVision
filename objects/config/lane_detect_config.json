@@ -1,5 +1,9 @@
 [
     {
+        "roi": {
+            "roi_type": "lines",
+            "visualize": false
+        },
         "grayscale": {
             "visualize": false
         },
@@ -16,10 +20,6 @@
         "dilation": {
             "kernel_size": 1,
             "iterations": 1,
-            "visualize": false
-        },
-        "roi": {
-            "roi_type": "lines",
             "visualize": false
         },
         "lane_detect": {

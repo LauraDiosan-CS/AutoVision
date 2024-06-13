@@ -3,6 +3,7 @@ import time
 import torch.multiprocessing as mp
 
 from filters.base_filter import BaseFilter
+from objects.pipe_data import PipeData
 
 
 class SequentialFilterProcess(mp.Process):
@@ -15,9 +16,11 @@ class SequentialFilterProcess(mp.Process):
         while True:
             data = self.pipe.recv()
             start_time = time.time()
+
             for filter in self.filter_configuration:
-                data = filter.process(data)
+                data: PipeData = filter.process(data)
+
             end_time = time.time()
-            print(f"{self.name} took {(end_time - start_time) * 1000} ms")
+            data.pipeline_execution_time = end_time - start_time
 
             self.pipe.send(data)

@@ -25,20 +25,22 @@ class ProcessPipelineManager:
             self.parallel_processes.append((process, pipe))
 
     def process_frame(self, data: PipeData, apply_draw_filter=False):
-        timer.start('Apply All Filters in Parallel', parent='Process Frame')
+        timer.start('Filters in Parallel', parent='Process Frame')
 
         for process, pipe in self.parallel_processes:
-            timer.start(f"Process Data {process.name}", parent="Apply All Filters in Parallel")
-            timer.start('Send Data', parent=f'Process Data {process.name}')
+            timer.start(f"{process.name}", parent="Filters in Parallel")
+            timer.start('Send Data', parent=f'{process.name}')
             pipe.send(data)
             timer.stop('Send Data')
         for process, pipe in self.parallel_processes:
-            timer.start('Recv Data', parent=f'Process Data {process.name}')
+            timer.start('Recv Data', parent=f'{process.name}')
             new_data = pipe.recv()
             timer.stop('Recv Data')
+            timer.start('Process Data', parent=f'{process.name}', extra_time_seconds=new_data.pipeline_execution_time)
+            timer.stop('Process Data') # This is just to add the process time to the timer
             data = data.merge(new_data)
-            timer.stop(f'Process Data {process.name}')
-        timer.stop('Apply All Filters in Parallel')
+            timer.stop(f'{process.name}')
+        timer.stop('Filters in Parallel')
 
         # Perform behavior planning based on processed data
         data.command = self.behaviour_planner.run_iteration(

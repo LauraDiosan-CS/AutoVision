@@ -43,7 +43,7 @@ def main():
             timer.start('Iteration', parent='Overall Timer')
             iteration_counter += 1
 
-            if iteration_counter % Config.fps == 0:
+            if iteration_counter % 2 == 0:
                 timer.plot_pie_charts()
 
             timer.start('Process Frame', parent='Iteration')
@@ -100,7 +100,7 @@ def main():
     cv2.destroyAllWindows()
     timer.stop('Cleanup')
     timer.stop('Overall Timer')
-    timer.plot_pie_charts()
+    timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
     plt.show()  # Keep the pie chart open
 
 

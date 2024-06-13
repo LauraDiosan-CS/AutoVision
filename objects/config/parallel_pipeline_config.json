@@ -30,6 +30,10 @@
         }
     },
     {
+        "roi": {
+            "roi_type": "lines",
+            "visualize": false
+        },
         "grayscale": {
             "visualize": false
         },
@@ -47,10 +51,6 @@
             "kernel_size": 1,
             "iterations": 1,
             "visualize": false
-        },
-        "roi": {
-            "roi_type": "lines",
-            "visualize": true
         },
         "lane_detect": {
             "visualize": false
