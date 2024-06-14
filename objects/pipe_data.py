@@ -1,4 +1,3 @@
-import time
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
@@ -12,6 +11,7 @@ class PipeData:
     frame: np.array
     depth_frame: np.array
     unfiltered_frame: np.array
+    creation_time: float
     processed_frames: Dict[str, List[np.array]] = field(default_factory=dict)
     last_touched_process: str = ""
     road_markings: Optional[RoadMarkings] = None
@@ -23,7 +23,9 @@ class PipeData:
     horizontal_lines: List[RoadObject] = field(default_factory=list)
     command: str = ""
     pipeline_execution_time: float = 0
-    creation_time: float = time.time()
+    send_start_time: float = 0
+    arrive_time: float = 0
+
 
     def add_processed_frame(self, frame):
         """
@@ -62,6 +64,10 @@ class PipeData:
             self.pedestrians = other.pedestrians
         if other.horizontal_lines and len(other.horizontal_lines) > 0:
             self.horizontal_lines = other.horizontal_lines
+
+        self.creation_time = other.creation_time
+        self.send_start_time = other.send_start_time
+        self.arrive_time = other.arrive_time
 
         for process_name, frames in other.processed_frames.items():
             self.processed_frames[process_name] = frames

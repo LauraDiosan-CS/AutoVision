@@ -23,13 +23,10 @@ class Controller(mp.Process):
         memory_reader = SharedMemoryReader(name=Config.composite_pipe_memory_name)
 
         while self.keep_running:
-            pipe_data_bytes = memory_reader.read()
-            while pipe_data_bytes is None:
-                if not self.keep_running.value:
-                    print(f"Exiting {self.name}")
-                    return
-                time.sleep(0.01)
-                pipe_data_bytes = memory_reader.read()
+            pipe_data_bytes = memory_reader.blocking_read()
+            if pipe_data_bytes is None:
+                print(f"Exiting {self.name}")
+                return
 
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 

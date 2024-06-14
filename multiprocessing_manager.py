@@ -6,7 +6,7 @@ from ripc import SharedMemoryWriter, SharedMemoryReader
 from config import Config
 from controllers.controller import Controller
 from helpers.ControlledProcess import ControlledProcess
-from helpers.helpers import Timer, initialize_config
+from helpers.helpers import initialize_config
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
 
@@ -38,30 +38,29 @@ class MultiProcessingManager(ControlledProcess):
 
         shared_memory_readers = [SharedMemoryReader(name=process_name) for process_name in process_names]
 
-        current_data = PipeData(frame=None, depth_frame=None, unfiltered_frame=None, last_touched_process="None")
+        # current_data = PipeData(frame=None, depth_frame=None, unfiltered_frame=None, last_touched_process="None",
+        #                         creation_time=time.time())
+        current_data = None
 
         while self.keep_running.value:
-            print("MultiProcessingManager: LoOping")
             for reader in shared_memory_readers:
-                pipe_data_bytes = reader.read_in_place(ignore_same_version=True)
-                while pipe_data_bytes is None:
-                    if not self.keep_running.value:
-                        self.join_all_processes(controller_process, parallel_processes)
-                        return
-                    time.sleep(0.01)
-                    pipe_data_bytes = reader.read_in_place(ignore_same_version=True)
-
+                pipe_data_bytes = reader.blocking_read()
+                if pipe_data_bytes is None:
+                    self.join_all_processes(controller_process, parallel_processes)
+                    return
                 pipe_data: PipeData = pickle.loads(pipe_data_bytes)
+                pipe_data.arrive_time = time.time()
 
-                with Timer(f"Frame Processing Loop for {current_data.last_touched_process}", min_print_time=0.01):
 
-                    if current_data.last_touched_process != "None":
-                        current_data.merge(pipe_data)
-                    else:
-                        current_data = pipe_data
+                if current_data and current_data.last_touched_process != "None":
+                    current_data.merge(pipe_data)
+                    print("merging")
+                else:
+                    current_data = pipe_data
 
-                    composite_pipe_writer.write(pickle.dumps(current_data, protocol=pickle.HIGHEST_PROTOCOL))
+                composite_pipe_writer.write(pickle.dumps(current_data, protocol=pickle.HIGHEST_PROTOCOL))
 
+        composite_pipe_writer.close()
         self.join_all_processes(controller_process, parallel_processes)
 
     @staticmethod

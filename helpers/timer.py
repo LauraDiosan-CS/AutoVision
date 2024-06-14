@@ -52,6 +52,7 @@ class Timer:
         self.color_hierarchy = {
             "gray": {
                 "lightgray": ["silver", "gainsboro", "whitesmoke"],
+                "brown": ["saddlebrown", "sienna", "chocolate", "peru"],
                 "white": {
                     "red": ["crimson","orangered","magenta", "darkred"],
                     "green": ["forestgreen", "darkgreen", "seagreen"],
@@ -59,7 +60,6 @@ class Timer:
                     "purple": ["violet", "indigo", "lavender", "plum"],
                     "yellow": ["gold", "orange"]
                 },
-                "brown": ["saddlebrown", "sienna", "chocolate", "peru"]
             }
         }
         self.root_color = "gray"
@@ -84,7 +84,7 @@ class Timer:
 
     def stop(self, label):
         if label not in self.start_times:
-            print(f"Timer for '{label}' was not started.")
+            # print(f"Timer for '{label}' was not started.")
             return
         if label in self.hierarchy:
             for child in self.hierarchy[label]:
@@ -131,10 +131,10 @@ class Timer:
 
     def plot_pie_charts(self, save_path=None):
         running_timers = self.stop_and_store_running_timers()
-        # for parent in self.hierarchy:
-        #     print(f"Parent: {parent}")
-        #     for child in self.hierarchy[parent]:
-        #         print(f"Child: {child} - {self.timings[child]:.3f} s")
+        for parent in self.hierarchy:
+            print(f"Parent: {parent}")
+            for child in self.hierarchy[parent]:
+                print(f"Child: {child} - {self.timings[child]} s")
 
         total_charts = sum(1 for children in self.hierarchy.values() if children)
 
@@ -156,7 +156,9 @@ class Timer:
                 for child, child_color in zip(self.hierarchy[label], self.color_hierarchy[self.root_color][color]):
                     color_lookup[child] = child_color
                     if self.hierarchy.get(child):  # if the child has children
-                        for grandchild, grandchild_color in zip(self.hierarchy[child], self.color_hierarchy[self.root_color][color][child_color]):
+                        print(child, child_color, color)
+                        for grandchild, grandchild_color in zip(self.hierarchy[child],
+                                                                self.color_hierarchy[self.root_color][color][child_color]):
                             color_lookup[grandchild] = grandchild_color
 
         node_queue = [(self.root_label, 0)]  # Start with the root node

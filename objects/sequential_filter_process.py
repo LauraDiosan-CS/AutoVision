@@ -24,31 +24,29 @@ class SequentialFilterProcess(ControlledProcess):
         self.finish_setup()
         video_feed = SharedMemoryReader(name=Config.video_feed_memory_name)
 
-        while self.keep_running:
-            frame_as_bytes = video_feed.read_in_place(ignore_same_version=True)
-            while frame_as_bytes is None:
-                if not self.keep_running.value:
-                    print(f"Exiting {self.name}")
-                    return
-                time.sleep(0.01)
-                frame_as_bytes = video_feed.read_in_place(ignore_same_version=True)
+        while self.keep_running.value:
+            frame_as_bytes = video_feed.blocking_read()
+            if frame_as_bytes is None:
+                break
 
-            start_time = time.time()
             frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
 
+            start_time = time.time()
             data = PipeData(frame=frame,
                             depth_frame=None,
-                            unfiltered_frame=frame)
-
+                            unfiltered_frame=frame, creation_time=time.time())
             data.last_touched_process = self.name
             for filter in self.filter_configuration:
-                data = filter.process(data)
-
-            data_as_bytes = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+                filter.process(data)
 
             end_time = time.time()
             data.pipeline_execution_time = end_time - start_time
 
+            data.send_start_time = time.time()
+
+            data_as_bytes = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+
             memory_writer.write(data_as_bytes)
 
+        memory_writer.close()
         print(f"Exiting {self.name}")

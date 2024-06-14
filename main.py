@@ -5,7 +5,6 @@ import time
 from datetime import datetime
 
 import cv2
-import ripc
 from matplotlib import pyplot as plt
 
 from config import Config
@@ -23,6 +22,9 @@ import multiprocessing as mp
 
 
 class VideoReaderProcess(ControlledProcess):
+    def __init__(self, keep_running: mp.Value, name=None):
+        super().__init__(name=name)
+        self.keep_running = keep_running
 
     def run(self):
         video_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
@@ -38,7 +40,7 @@ class VideoReaderProcess(ControlledProcess):
         print(
             f"VideoReaderProcess: Actual video dimensions width: {capture.get(cv2.CAP_PROP_FRAME_WIDTH)} height: {capture.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
 
-        while capture.isOpened():
+        while self.keep_running.value and capture.isOpened():
             start_time = time.perf_counter()
 
             ret, frame = capture.read()
@@ -52,6 +54,7 @@ class VideoReaderProcess(ControlledProcess):
             if time_to_wait > 0:
                 time.sleep(time_to_wait)
 
+        video_shared_memory.close()
         capture.release()
         print("VideoReaderProcess: Video ended")
 
@@ -61,12 +64,13 @@ def main():
     timer.start('Setup', parent='Overall Timer')
     mp.set_start_method('spawn')
 
-    video_reader_process = VideoReaderProcess()
+    keep_running = mp.Value('b', True)
+
+    video_reader_process = VideoReaderProcess(keep_running=keep_running)
     video_reader_process.start()
     # ripc.V4lSharedMemoryWriter('path', Config.width, "video_name")
 
-    mp_manager_keep_running = mp.Value('b', True)
-    mp_manager = MultiProcessingManager(mp_manager_keep_running)
+    mp_manager = MultiProcessingManager(keep_running)
     mp_manager.start()
 
     visualizer_memory = SharedMemoryReader(name=Config.composite_pipe_memory_name)
@@ -105,37 +109,51 @@ def main():
     timer.stop('Setup')
 
     while True:
-        for i in range(frames_to_skip + 1):
-            pipe_data_bytes = visualizer_memory.read()
+        # for i in range(frames_to_skip + 1):
+        pipe_data_bytes = visualizer_memory.read()
 
         if pipe_data_bytes is not None:
             iteration_counter += 1
-            timer.start('Vizualisation Loop', parent='Overall Timer')
+            timer.start('Display Frame', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
-            if iteration_counter % 2 == 0:
-                timer.plot_pie_charts()
+            timer.start('Process Frame', parent='Overall Timer',
+                        extra_time_seconds=time.time() - pipe_data.creation_time)
 
-            print(
-                f"PipeData with {pipe_data.last_touched_process} took {pipe_data.creation_time - time.time()} seconds from creation to visualizer")
+            timer.start(f"{pipe_data.last_touched_process}", parent="Process Frame")
+            timer.start(f"Process Data {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
+                        extra_time_seconds=pipe_data.pipeline_execution_time)
+            timer.stop(f"Process Data {pipe_data.last_touched_process}")
 
-            with Timer("Main Process Loop"):
-                if Config.apply_visualizer:
-                    pipe_data = draw_filter.process(pipe_data)
+            timer.start(f"Transfer time {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
+                        extra_time_seconds=pipe_data.arrive_time-pipe_data.send_start_time)
+            timer.stop(f"Transfer time {pipe_data.last_touched_process}")
 
-                if pipe_data.processed_frames is not None:
-                    squashed_frames = sum(pipe_data.processed_frames.values(), [])
-                    final_img = stack_images_v2(1, squashed_frames)
-                else:
-                    final_img = pipe_data.frame
+            timer.stop(f"{pipe_data.last_touched_process}")
+            timer.stop('Process Frame')
 
-                cv2.imshow('CarVision', final_img)
 
-                if Config.save_processed_video and save_queue is not None:
-                    print("Processed Save Queue size : ", save_queue.qsize())
-                    save_queue.put(pipe_data.frame)
+            if iteration_counter % Config.fps == 0:
+                timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
+            # end_time = time.time() - pipe_data.creation_time
+            # print(f"PipeData with {pipe_data.last_touched_process} took {end_time} seconds equivalent to fps: {1/end_time}")
 
-        timer.start('Wait User Input', parent='Iteration')
+            if Config.apply_visualizer:
+                pipe_data = draw_filter.process(pipe_data)
+
+            if pipe_data.processed_frames is not None:
+                squashed_frames = sum(pipe_data.processed_frames.values(), [])
+                final_img = stack_images_v2(1, squashed_frames)
+            else:
+                final_img = pipe_data.frame
+
+            cv2.imshow('CarVision', final_img)
+
+            if Config.save_processed_video and save_queue is not None:
+                print("Processed Save Queue size : ", save_queue.qsize())
+                save_queue.put(pipe_data.frame)
+
+        timer.start('Wait User Input', parent='Display Frame')
         if replay_speed < 0:
             wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
             frames_to_skip = 0
@@ -169,12 +187,12 @@ def main():
                 replay_speed = -1
             print(f"Replay speed: {replay_speed}")
         timer.stop('Wait User Input')
-        timer.stop('Iteration')
+        timer.stop('Display Frame')
 
     timer.start('Cleanup', parent='Overall Timer')
     cv2.destroyAllWindows()
 
-    mp_manager_keep_running.value = False
+    keep_running.value = False
     print("Initiating Termination of MultiProcessingManager")
 
     if save_queue is not None and save_process is not None:
