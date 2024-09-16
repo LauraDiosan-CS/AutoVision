@@ -1,4 +1,5 @@
 import argparse
+import multiprocessing as mp
 import os
 import pickle
 import time
@@ -9,57 +10,18 @@ from matplotlib import pyplot as plt
 
 from config import Config
 from filters.draw_filter import DrawFilter
-from helpers.ControlledProcess import ControlledProcess
-from helpers.helpers import stack_images_v2, draw_rois_and_wait, Timer, get_roi_bbox_for_video, save_frames
-from ripc import SharedMemoryWriter, SharedMemoryReader
-
-from helpers.timer import timer
+from helpers.helpers import stack_images_v2, draw_rois_and_wait, get_roi_bbox_for_video, save_frames
+from helpers.timingvisualizer import TimingVisualizer
 from multiprocessing_manager import MultiProcessingManager
 from objects.pipe_data import PipeData
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoRois, VideoInfo
-import multiprocessing as mp
-
-
-class VideoReaderProcess(ControlledProcess):
-    def __init__(self, keep_running: mp.Value, name=None):
-        super().__init__(name=name)
-        self.keep_running = keep_running
-
-    def run(self):
-        video_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
-        self.finish_setup()
-
-        fps = Config.fps
-        time_between_frames = 1 / fps
-
-        video_path = str(os.path.join(Config.videos_dir, Config.video_name))
-        capture = cv2.VideoCapture(video_path)
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, Config.width)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.height)
-        print(
-            f"VideoReaderProcess: Actual video dimensions width: {capture.get(cv2.CAP_PROP_FRAME_WIDTH)} height: {capture.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
-
-        while self.keep_running.value and capture.isOpened():
-            start_time = time.perf_counter()
-
-            ret, frame = capture.read()
-            if not ret:
-                break
-
-            video_shared_memory.write(frame.tobytes())
-
-            end_time = time.perf_counter() - start_time
-            time_to_wait = time_between_frames - end_time
-            if time_to_wait > 0:
-                time.sleep(time_to_wait)
-
-        video_shared_memory.close()
-        capture.release()
-        print("VideoReaderProcess: Video ended")
+from ripc import SharedMemoryReader
+from videoreaderprocess import VideoReaderProcess
 
 
 def main():
+    timer = TimingVisualizer()
     timer.start('Overall Timer')
     timer.start('Setup', parent='Overall Timer')
     mp.set_start_method('spawn')
@@ -103,19 +65,22 @@ def main():
 
     replay_speed = 1
     pipe_data_bytes = None
+    pipe_data = None
     frames_to_skip = 0
     iteration_counter = 0
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
     timer.stop('Setup')
 
     while True:
-        # for i in range(frames_to_skip + 1):
-        pipe_data_bytes = visualizer_memory.read()
+        for i in range(frames_to_skip + 1): # this doesnt check if there are enough frames to skip
+          pipe_data_bytes = visualizer_memory.read()
 
         if pipe_data_bytes is not None:
             iteration_counter += 1
             timer.start('Display Frame', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
+            pipe_data.timings.stop("Transfer Data (MM -> Viz)")
+            # print(f"PipeData timings: {pipe_data.timings}")
 
             timer.start('Process Frame', parent='Overall Timer',
                         extra_time_seconds=time.time() - pipe_data.creation_time)
@@ -130,6 +95,8 @@ def main():
             timer.stop(f"Transfer time {pipe_data.last_touched_process}")
 
             timer.stop(f"{pipe_data.last_touched_process}")
+            pipe_data.timings.stop("Data Lifecycle")
+
             timer.stop('Process Frame')
 
 
@@ -153,20 +120,22 @@ def main():
                 print("Processed Save Queue size : ", save_queue.qsize())
                 save_queue.put(pipe_data.frame)
 
-        timer.start('Wait User Input', parent='Display Frame')
-        if replay_speed < 0:
+        if replay_speed < 1:
             wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
             frames_to_skip = 0
             key = cv2.waitKey(wait_for_ms)
         else:
-            frames_to_skip = replay_speed
+            frames_to_skip = replay_speed - 1
             key = cv2.waitKey(5)
 
         if key & 0xFF == ord('q'):
             break
         elif key & 0xFF == ord('x'):
-            draw_rois_and_wait(pipe_data.frame, video_rois)
-            cv2.waitKey(0)
+            if pipe_data is not None:
+                draw_rois_and_wait(pipe_data.frame, video_rois)
+                cv2.waitKey(0)
+            else:
+                print("No frame to draw ROIs on")
         elif key & 0xFF == ord('s'):
             save_dir_path = os.path.join(os.getcwd(), Config.screenshot_dir)
             if not os.path.exists(save_dir_path):
@@ -186,7 +155,6 @@ def main():
             if replay_speed == 0:
                 replay_speed = -1
             print(f"Replay speed: {replay_speed}")
-        timer.stop('Wait User Input')
         timer.stop('Display Frame')
 
     timer.start('Cleanup', parent='Overall Timer')

@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import timerr
+import time
 from tqdm import tqdm
 
 current_datetime = time.strftime("%Y%m%d_%H%M", time.localtime())

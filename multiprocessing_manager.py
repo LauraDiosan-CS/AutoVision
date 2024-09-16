@@ -5,7 +5,7 @@ import time
 from ripc import SharedMemoryWriter, SharedMemoryReader
 from config import Config
 from controllers.controller import Controller
-from helpers.ControlledProcess import ControlledProcess
+from helpers.controlled_process import ControlledProcess
 from helpers.helpers import initialize_config
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
@@ -50,14 +50,16 @@ class MultiProcessingManager(ControlledProcess):
                     return
                 pipe_data: PipeData = pickle.loads(pipe_data_bytes)
                 pipe_data.arrive_time = time.time()
+                pipe_data.timings.stop("Transfer Data (SPF -> MM)")
 
 
                 if current_data and current_data.last_touched_process != "None":
                     current_data.merge(pipe_data)
-                    print("merging")
+                    # print("merging")
                 else:
                     current_data = pipe_data
 
+                pipe_data.timings.start("Transfer Data (MM -> Viz+)", parent="Data Lifecycle")
                 composite_pipe_writer.write(pickle.dumps(current_data, protocol=pickle.HIGHEST_PROTOCOL))
 
         composite_pipe_writer.close()
