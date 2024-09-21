@@ -79,28 +79,31 @@ def main():
             iteration_counter += 1
             timer.start('Display Frame', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-            pipe_data.timings.stop("Transfer Data (MM -> Viz)")
-            # print(f"PipeData timings: {pipe_data.timings}")
+            pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
+            pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
+            print(f"PipeData timings: {pipe_data.timing_info.hierarchy}")
+            print(f"Timer hierarchy: {timer.hierarchy}")
+            timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
 
-            timer.start('Process Frame', parent='Overall Timer',
-                        extra_time_seconds=time.time() - pipe_data.creation_time)
-
-            timer.start(f"{pipe_data.last_touched_process}", parent="Process Frame")
-            timer.start(f"Process Data {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
-                        extra_time_seconds=pipe_data.pipeline_execution_time)
-            timer.stop(f"Process Data {pipe_data.last_touched_process}")
-
-            timer.start(f"Transfer time {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
-                        extra_time_seconds=pipe_data.arrive_time-pipe_data.send_start_time)
-            timer.stop(f"Transfer time {pipe_data.last_touched_process}")
-
-            timer.stop(f"{pipe_data.last_touched_process}")
-            pipe_data.timings.stop("Data Lifecycle")
-
-            timer.stop('Process Frame')
+            # timer.start('Process Frame', parent='Overall Timer',
+            #             extra_time_seconds=time.time() - pipe_data.creation_time)
+            #
+            # timer.start(f"{pipe_data.last_touched_process}", parent="Process Frame")
+            # timer.start(f"Process Data {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
+            #             extra_time_seconds=pipe_data.pipeline_execution_time)
+            # timer.stop(f"Process Data {pipe_data.last_touched_process}")
+            #
+            # timer.start(f"Transfer time {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
+            #             extra_time_seconds=pipe_data.arrive_time-pipe_data.send_start_time)
+            # timer.stop(f"Transfer time {pipe_data.last_touched_process}")
+            #
+            # timer.stop(f"{pipe_data.last_touched_process}")
+            #
+            # timer.stop('Process Frame')
 
 
             if iteration_counter % Config.fps == 0:
+                print("Plotting pie charts")
                 timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
             # end_time = time.time() - pipe_data.creation_time
             # print(f"PipeData with {pipe_data.last_touched_process} took {end_time} seconds equivalent to fps: {1/end_time}")

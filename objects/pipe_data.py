@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
 import numpy as np
+from mpmath import timing
 
 from helpers.timing_info import TimingInfo
 from objects.types.road_info import RoadObject, RoadMarkings
@@ -14,7 +15,7 @@ class PipeData:
     depth_frame: np.array
     unfiltered_frame: np.array
     creation_time: float
-    timings: TimingInfo = field(default_factory=TimingInfo)
+    timing_info: TimingInfo = field(default_factory=TimingInfo)
     processed_frames: Dict[str, List[np.array]] = field(default_factory=dict)
     last_touched_process: str = ""
     road_markings: Optional[RoadMarkings] = None
@@ -25,9 +26,6 @@ class PipeData:
     pedestrians: List[RoadObject] = field(default_factory=list)
     horizontal_lines: List[RoadObject] = field(default_factory=list)
     command: str = ""
-    pipeline_execution_time: float = 0
-    send_start_time: float = 0
-    arrive_time: float = 0
 
 
     def add_processed_frame(self, frame):
@@ -39,40 +37,62 @@ class PipeData:
         else:
             self.processed_frames[self.last_touched_process].append(frame)
 
-    def merge(self, other):
+
+    def merge(self, new_pipe_data: 'PipeData') -> 'PipeData':
         """
         Merge data from another PipeData instance into this one.
         """
-        if other.frame is not None:
-            self.frame = other.frame
-        if other.depth_frame is not None:
-            self.depth_frame = other.depth_frame
-        if other.unfiltered_frame is not None:
-            self.unfiltered_frame = other.unfiltered_frame
-        if other.road_markings is not None:
-            self.road_markings = other.road_markings
-        if other.heading_error is not None:
-            self.heading_error = other.heading_error
-        if other.last_touched_process != "":
-            self.last_touched_process = other.last_touched_process
-        if other.lateral_offset is not None:
-            self.lateral_offset = other.lateral_offset
-        if other.command != "":
-            self.command = other.command
-        if other.traffic_signs and len(other.traffic_signs) > 0:
-            self.traffic_signs = other.traffic_signs
-        if other.traffic_lights and len(other.traffic_lights) > 0:
-            self.traffic_lights = other.traffic_lights
-        if other.pedestrians and len(other.pedestrians) > 0:
-            self.pedestrians = other.pedestrians
-        if other.horizontal_lines and len(other.horizontal_lines) > 0:
-            self.horizontal_lines = other.horizontal_lines
+        self.timing_info.append_hierarchy(new_pipe_data.timing_info)
+        print(f"Merge timings: {self.timing_info.hierarchy}")
 
-        self.creation_time = other.creation_time
-        self.send_start_time = other.send_start_time
-        self.arrive_time = other.arrive_time
+        attributes = [
+            'frame',
+            'depth_frame',
+            'unfiltered_frame',
+            'road_markings',
+            'heading_error',
+            'last_touched_process',
+            'lateral_offset',
+            'command',
+            'traffic_signs',
+            'traffic_lights',
+            'pedestrians',
+            'horizontal_lines'
+        ]
 
-        for process_name, frames in other.processed_frames.items():
+        for attr in attributes:
+            new_value = getattr(new_pipe_data, attr)
+
+            # Verify if the new pipe data has a valid value for the attribute
+            if new_value or new_value == 0:  # Check for non-None or valid 0
+                setattr(self, attr, new_value)
+
+        for process_name, frames in new_pipe_data.processed_frames.items():
             self.processed_frames[process_name] = frames
 
         return self
+
+#         if new_pipe_data.frame is not None:
+#             self.frame = new_pipe_data.frame
+#         if new_pipe_data.depth_frame is not None:
+#             self.depth_frame = new_pipe_data.depth_frame
+#         if new_pipe_data.unfiltered_frame is not None:
+#             self.unfiltered_frame = new_pipe_data.unfiltered_frame
+#         if new_pipe_data.road_markings is not None:
+#             self.road_markings = new_pipe_data.road_markings
+#         if new_pipe_data.heading_error is not None:
+#             self.heading_error = new_pipe_data.heading_error
+#         if new_pipe_data.last_touched_process != "":
+#             self.last_touched_process = new_pipe_data.last_touched_process
+#         if new_pipe_data.lateral_offset is not None:
+#             self.lateral_offset = new_pipe_data.lateral_offset
+#         if new_pipe_data.command != "":
+#             self.command = new_pipe_data.command
+#         if new_pipe_data.traffic_signs:
+#             self.traffic_signs = new_pipe_data.traffic_signs
+#         if new_pipe_data.traffic_lights:
+#             self.traffic_lights = new_pipe_data.traffic_lights
+#         if new_pipe_data.pedestrians:
+#             self.pedestrians = new_pipe_data.pedestrians
+#         if new_pipe_data.horizontal_lines:
+#             self.horizontal_lines = new_pipe_data.horizontal_lines

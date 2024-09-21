@@ -1,5 +1,3 @@
-from typing import List
-
 import cv2
 from ultralytics import YOLO
 import torch
@@ -70,7 +68,7 @@ class SignsDetect(ObjectDetectionFilter):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame)
+        yolo_results = self.model(data.frame, verbose=False)
         data.traffic_signs = self.pre_process_result(yolo_results[0], data, 0.3)
         data.frame = yolo_results[0].plot()
 
@@ -85,7 +83,7 @@ class TrafficLightDetect(ObjectDetectionFilter):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame)
+        yolo_results = self.model(data.frame, verbose=False)
         data.traffic_lights = self.pre_process_result(yolo_results[0], data)
         data.frame = yolo_results[0].plot()
 
@@ -100,7 +98,7 @@ class PedestrianDetect(ObjectDetectionFilter):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame)
+        yolo_results = self.model(data.frame, verbose=False)
         data.pedestrians = self.pre_process_result(yolo_results[0], data)
         data.frame = yolo_results[0].plot()
 
