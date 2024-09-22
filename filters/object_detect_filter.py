@@ -68,7 +68,7 @@ class SignsDetect(ObjectDetectionFilter):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame, verbose=False)
+        yolo_results = self.model(data.frame, verbose=True)
         data.traffic_signs = self.pre_process_result(yolo_results[0], data, 0.3)
         data.frame = yolo_results[0].plot()
 

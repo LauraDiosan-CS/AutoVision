@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import os
 import time
+from enum import Enum
 
 import cv2
 
@@ -8,11 +9,17 @@ from config import Config
 from helpers.controlled_process import ControlledProcess
 from ripc import SharedMemoryWriter
 
+class Strategy(Enum):
+    LIVE = 1
+    ALL_FRAMES_FASTEST_PROCESS = 2
+    ALL_FRAMES_ALL_PROCESSES = 3
 
 class VideoReaderProcess(ControlledProcess):
-    def __init__(self, keep_running: mp.Value, name=None):
+    def __init__(self, keep_running: mp.Value, shared_list: mp.Array, name=None):
         super().__init__(name=name)
         self.keep_running = keep_running
+        self.shared_list = shared_list
+
 
     def run(self):
         video_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
@@ -29,6 +36,16 @@ class VideoReaderProcess(ControlledProcess):
             f"VideoReaderProcess: Actual video dimensions width: {capture.get(cv2.CAP_PROP_FRAME_WIDTH)} height: {capture.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
 
         while self.keep_running.value and capture.isOpened():
+            print(f"Shared list (version={video_shared_memory.last_written_version()}) : ", end=" ")
+            for shared_memory in self.shared_list:
+                print(shared_memory.value, end=" ")
+            print()
+            # if any(x.value != video_shared_memory.last_written_version() for x in self.shared_list):
+            #     continue
+            if not any(x.value == video_shared_memory.last_written_version() for x in self.shared_list):
+                print("VideoReaderProcess: Waiting for all processes to catch up")
+                continue
+
             start_time = time.perf_counter()
 
             ret, frame = capture.read()

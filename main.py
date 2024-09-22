@@ -1,4 +1,5 @@
 import argparse
+import ctypes
 import multiprocessing as mp
 import os
 import pickle
@@ -28,12 +29,16 @@ def main():
 
     keep_running = mp.Value('b', True)
 
-    video_reader_process = VideoReaderProcess(keep_running=keep_running)
+    shared_list = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
+
+    video_reader_process = VideoReaderProcess(keep_running=keep_running, shared_list=shared_list)
     video_reader_process.start()
+    video_reader_process.wait_for_setup()
     # ripc.V4lSharedMemoryWriter('path', Config.width, "video_name")
 
-    mp_manager = MultiProcessingManager(keep_running)
+    mp_manager = MultiProcessingManager(keep_running=keep_running, shared_list=shared_list)
     mp_manager.start()
+    mp_manager.wait_for_setup()
 
     visualizer_memory = SharedMemoryReader(name=Config.composite_pipe_memory_name)
 
@@ -81,30 +86,15 @@ def main():
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
             pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
             pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
-            print(f"PipeData timings: {pipe_data.timing_info.hierarchy}")
-            print(f"Timer hierarchy: {timer.hierarchy}")
+            print()
+            # print(f"Timing_Info Viz pre: {pipe_data.timing_info}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
-
-            # timer.start('Process Frame', parent='Overall Timer',
-            #             extra_time_seconds=time.time() - pipe_data.creation_time)
-            #
-            # timer.start(f"{pipe_data.last_touched_process}", parent="Process Frame")
-            # timer.start(f"Process Data {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
-            #             extra_time_seconds=pipe_data.pipeline_execution_time)
-            # timer.stop(f"Process Data {pipe_data.last_touched_process}")
-            #
-            # timer.start(f"Transfer time {pipe_data.last_touched_process}", parent=f"{pipe_data.last_touched_process}",
-            #             extra_time_seconds=pipe_data.arrive_time-pipe_data.send_start_time)
-            # timer.stop(f"Transfer time {pipe_data.last_touched_process}")
-            #
-            # timer.stop(f"{pipe_data.last_touched_process}")
-            #
-            # timer.stop('Process Frame')
-
-
+            # print(f"Timer hierarchy after append: {timer.hierarchy}")
+            # print(f"Timing_Info Viz post: {timer.timing_info}")
+            print()
             if iteration_counter % Config.fps == 0:
                 print("Plotting pie charts")
-                timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
+                # timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
             # end_time = time.time() - pipe_data.creation_time
             # print(f"PipeData with {pipe_data.last_touched_process} took {end_time} seconds equivalent to fps: {1/end_time}")
 

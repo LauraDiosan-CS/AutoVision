@@ -3,8 +3,8 @@ class Config:
     videos_dir = 'videos'
     recordings_dir = 'videos/recordings'
     screenshot_dir = 'screenshots'
-    pipeline_config_path = 'objects/config/lane_detect_config.json'
-    # pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
+    # pipeline_config_path = 'objects/config/lane_detect_config.json'
+    pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
     roi_config_path = 'objects/config/roi.json'
     video_name = "Raw_Car_Pov_Final.mp4" #"curved_lines_2024_1.avi"
     apply_visualizer = True
@@ -12,7 +12,7 @@ class Config:
     save_processed_video = False
     http_connection_failed_limit = 0
     http_timeout = 5
-    fps = 2
+    fps = 60
     width = 1280 #640
     height = 720 #480
     image_size = width * height * 3

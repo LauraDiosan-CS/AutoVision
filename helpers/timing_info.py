@@ -12,7 +12,45 @@ class TimingInfo:
         self.root_label = None
 
     def __str__(self):
-        return f"Timings: {self.timings}, Counts: {self.counts}, Hierarchy: {self.hierarchy}"
+        def format_time(time_value):
+            units = [("s", 1), ("min", 60), ("h", 3600)]
+            time_str = f"{time_value * 1000:.0f} ms"  # Default to milliseconds if time is very small
+            for unit, limit in reversed(units):
+                if time_value >= limit:
+                    time_str = f"{time_value / limit:.2f} {unit}"
+                    break
+            return time_str
+
+        def get_total_time(label):
+            total_time = self.timings.get(label, 0)
+            if label in self.start_times:  # Add time since start if still active
+                total_time += time.time() - self.start_times[label]
+            return total_time
+
+        def build_hierarchy(label, indent=0):
+            lines = []
+            total_time = get_total_time(label)
+            count = self.counts.get(label, 0)
+            avg_time = total_time / count if count > 0 else 0
+            formatted_total_time = format_time(total_time)
+            formatted_avg_time = format_time(avg_time)
+
+            status = "(active)" if label in self.start_times else "(inactive)"
+            lines.append(
+                f"{'  ' * indent}{label}: total {formatted_total_time}, avg {formatted_avg_time}, count {count} {status}")
+
+            if label in self.hierarchy:
+                for child in self.hierarchy[label]:
+                    lines.extend(build_hierarchy(child, indent + 1))
+            return lines
+
+        if self.root_label:
+            hierarchy_lines = build_hierarchy(self.root_label)
+            hierarchy_str = "\n".join(hierarchy_lines)
+        else:
+            hierarchy_str = "No active hierarchy."
+
+        return f"\n\n{hierarchy_str}\n"
 
     __repr__ = __str__
 
@@ -47,14 +85,25 @@ class TimingInfo:
                     # print(f"Stopping child: {child} for parent: {label}")
                     self.stop(child)
 
-        end_time = time.time()
-        elapsed = end_time - self.start_times.pop(label)
+        elapsed = time.time() - self.start_times.pop(label)
         if label in self.timings:
             self.timings[label] += elapsed
             self.counts[label] += 1
         else:
             self.timings[label] = elapsed
             self.counts[label] = 1
+
+    def remove_recursive(self, label):
+        if label in self.hierarchy:
+            for child in self.hierarchy[label]:
+                self.remove_recursive(child)
+            del self.hierarchy[label]
+        if label in self.start_times:
+            del self.start_times[label]
+        if label in self.timings:
+            del self.timings[label]
+        if label in self.counts:
+            del self.counts[label]
 
     def pause_all(self):
         if not self.start_times:
@@ -119,11 +168,14 @@ class TimingInfo:
     #     self.paused_times.update(other.paused_times)
     #
     def append_hierarchy(self, other, label: str = None):
+        # print(f"Appending hierarchy of {other.root_label} to {label}")
+        # print(f"Current hierarchy: {self.hierarchy}")
+        # print(f"Other hierarchy: {other.hierarchy}")
+
         if label is None:
             label = self.root_label  # Use the root label of the current TimingInfo
-
         # Ensure the label exists in the current hierarchy
-        if label not in self.hierarchy:
+        elif label not in self.hierarchy:
             print(f"Label '{label}' does not exist in the current hierarchy.")
             raise ValueError(f"Label '{label}' does not exist in the current hierarchy.")
 
