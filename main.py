@@ -1,5 +1,4 @@
 import argparse
-import ctypes
 import multiprocessing as mp
 import os
 import pickle
@@ -7,18 +6,19 @@ import time
 from datetime import datetime
 
 import cv2
+import numpy as np
 from matplotlib import pyplot as plt
 
 from config import Config
 from filters.draw_filter import DrawFilter
-from helpers.helpers import stack_images_v2, draw_rois_and_wait, get_roi_bbox_for_video, save_frames
+from helpers.helpers import draw_rois_and_wait, get_roi_bbox_for_video, save_frames, extract_pipeline_names, \
+    stack_images_v5
 from helpers.timingvisualizer import TimingVisualizer
 from multiprocessing_manager import MultiProcessingManager
 from objects.pipe_data import PipeData
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoRois, VideoInfo
 from ripc import SharedMemoryReader
-from videoreaderprocess import VideoReaderProcess
 
 
 def main():
@@ -29,18 +29,11 @@ def main():
 
     keep_running = mp.Value('b', True)
 
-    shared_list = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
-
-    video_reader_process = VideoReaderProcess(keep_running=keep_running, shared_list=shared_list)
-    video_reader_process.start()
-    video_reader_process.wait_for_setup()
-    # ripc.V4lSharedMemoryWriter('path', Config.width, "video_name")
-
-    mp_manager = MultiProcessingManager(keep_running=keep_running, shared_list=shared_list)
+    mp_manager = MultiProcessingManager(keep_running=keep_running)
     mp_manager.start()
     mp_manager.wait_for_setup()
 
-    visualizer_memory = SharedMemoryReader(name=Config.composite_pipe_memory_name)
+    visualizer_memory_reader = SharedMemoryReader(name=Config.composite_pipe_memory_name)
 
     save_queue = None
     save_process = None
@@ -68,6 +61,8 @@ def main():
 
     draw_filter = DrawFilter(video_info=video_info)
 
+    pipeline_names = extract_pipeline_names()
+
     replay_speed = 1
     pipe_data_bytes = None
     pipe_data = None
@@ -77,8 +72,8 @@ def main():
     timer.stop('Setup')
 
     while True:
-        for i in range(frames_to_skip + 1): # this doesnt check if there are enough frames to skip
-          pipe_data_bytes = visualizer_memory.read()
+        for i in range(frames_to_skip + 1): # this doesn't check if there are enough frames to skip
+            pipe_data_bytes = visualizer_memory_reader.read()
 
         if pipe_data_bytes is not None:
             iteration_counter += 1
@@ -86,15 +81,16 @@ def main():
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
             pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
             pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
-            print()
+            print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - Config.program_start_time):.2f} s")
+            # print()
             # print(f"Timing_Info Viz pre: {pipe_data.timing_info}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
             # print(f"Timer hierarchy after append: {timer.hierarchy}")
             # print(f"Timing_Info Viz post: {timer.timing_info}")
-            print()
+            # print()
             if iteration_counter % Config.fps == 0:
-                print("Plotting pie charts")
-                # timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
+                # print("Plotting pie charts")
+                timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
             # end_time = time.time() - pipe_data.creation_time
             # print(f"PipeData with {pipe_data.last_touched_process} took {end_time} seconds equivalent to fps: {1/end_time}")
 
@@ -102,12 +98,20 @@ def main():
                 pipe_data = draw_filter.process(pipe_data)
 
             if pipe_data.processed_frames is not None:
-                squashed_frames = sum(pipe_data.processed_frames.values(), [])
-                final_img = stack_images_v2(1, squashed_frames)
+                squashed_frames = []
+                for pipeline_name in pipeline_names:
+                    if pipeline_name in pipe_data.processed_frames:
+                        squashed_frames.append(pipe_data.processed_frames[pipeline_name])
+                    else:
+                        # add black frame
+                        squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
+                squashed_frames.append([pipe_data.frame])
+                final_img = stack_images_v5(1, squashed_frames)
             else:
                 final_img = pipe_data.frame
 
             cv2.imshow('CarVision', final_img)
+            # time.sleep(1)
 
             if Config.save_processed_video and save_queue is not None:
                 print("Processed Save Queue size : ", save_queue.qsize())
@@ -180,6 +184,15 @@ def update_config(config, args):
 
 
 if __name__ == '__main__':
+    # img1 = np.full((100, 100, 3), (0, 0, 255), dtype=np.uint8)  # Red image (BGR format)
+    # img2 = np.full((100, 100, 3), (0, 255, 0), dtype=np.uint8)  # Green image (BGR format)
+    # img3 = np.full((100, 100, 3), (255, 0, 0), dtype=np.uint8)  # Blue image (BGR format)
+    # img4 = np.full((100, 100, 3), (0, 255, 255), dtype=np.uint8)  # Cyan image (BGR format)
+    #
+    # result = stack_images_v4(0.5, [[img1, img2], [img3, img4, img1]])
+    # cv2.imshow('Stacked Images', result)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     args = argparse.ArgumentParser().parse_args()
     update_config(Config, args)
     main()

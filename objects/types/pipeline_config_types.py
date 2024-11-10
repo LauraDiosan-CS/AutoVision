@@ -1,5 +1,7 @@
 from collections import namedtuple
-from typing import Union
+from dataclasses import dataclass
+from enum import Enum
+from typing import Type, List, Union
 
 from filters.base_filter import BaseFilter
 from filters.basic_filters.blur_filter import BlurFilter
@@ -13,20 +15,31 @@ from filters.heading_error_filter import HeadingErrorFilter
 from filters.object_detect_filter import TrafficLightDetect
 from filters.object_detect_filter import PedestrianDetect
 
-JSONPipelineConfig = list[dict[str, dict[str, Union[int, str, float]]]]
-PipelineConfig = list[list[BaseFilter]]
+json_filters_class_params_type = dict[str, Union[str, int, bool]]
+json_filters_type = dict[str, json_filters_class_params_type]
 
-FilterClassWithParams = namedtuple("FilterClassWithParams", ["filter_class", "expected_params"])
+# its either the "name" (str) or the "filters" (json_filters_type)
+JSONPipelinesTYPE = list[dict[str, str | json_filters_type]]
 
-FILTER_CLASS_LOOKUP: dict[str:FilterClassWithParams] = {
-    "blur": FilterClassWithParams(BlurFilter, ["visualize","kernel_size", "sigmaX"]),
-    "dilation": FilterClassWithParams(DilationFilter, ["visualize","kernel_size", "iterations"]),
-    "grayscale": FilterClassWithParams(GrayScaleFilter, ["visualize"]),
-    "canny_edge": FilterClassWithParams(CannyEdgeFilter, ["visualize","low_threshold", "high_threshold"]),
-    "roi": FilterClassWithParams(ROIFilter, ["visualize","roi_type"]),
-    "lane_detect": FilterClassWithParams(LaneDetectFilter, ["visualize"]),
-    "heading_error": FilterClassWithParams(HeadingErrorFilter, ["visualize"]),
-    "signs_detect": FilterClassWithParams(SignsDetect, ["visualize","model_path"]),
-    "traffic_light_detect": FilterClassWithParams(TrafficLightDetect, ["visualize","model_path"]),
-    "pedestrian_detect": FilterClassWithParams(PedestrianDetect, ["visualize","model_path"])
+@dataclass(slots=True)
+class PipelineConfig:
+    name: str
+    filters: List[BaseFilter]
+
+@dataclass(slots=True)
+class FilterClassWithExpectedParams:
+    filter_class: Type[BaseFilter]  # Reference to the filter class itself
+    expected_params: list[str]  # List of strings containing the expected parameters
+
+FILTER_CLASS_LOOKUP: dict[str, FilterClassWithExpectedParams] = {
+    "blur": FilterClassWithExpectedParams(BlurFilter, ["visualize", "kernel_size", "sigmaX"]),
+    "dilation": FilterClassWithExpectedParams(DilationFilter, ["visualize", "kernel_size", "iterations"]),
+    "grayscale": FilterClassWithExpectedParams(GrayScaleFilter, ["visualize"]),
+    "canny_edge": FilterClassWithExpectedParams(CannyEdgeFilter, ["visualize", "low_threshold", "high_threshold"]),
+    "roi": FilterClassWithExpectedParams(ROIFilter, ["visualize", "roi_type"]),
+    "lane_detect": FilterClassWithExpectedParams(LaneDetectFilter, ["visualize"]),
+    "heading_error": FilterClassWithExpectedParams(HeadingErrorFilter, ["visualize"]),
+    "signs_detect": FilterClassWithExpectedParams(SignsDetect, ["visualize", "model_path"]),
+    "traffic_light_detect": FilterClassWithExpectedParams(TrafficLightDetect, ["visualize", "model_path"]),
+    "pedestrian_detect": FilterClassWithExpectedParams(PedestrianDetect, ["visualize", "model_path"]),
 }

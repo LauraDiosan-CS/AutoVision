@@ -15,18 +15,19 @@ class Strategy(Enum):
     ALL_FRAMES_ALL_PROCESSES = 3
 
 class VideoReaderProcess(ControlledProcess):
-    def __init__(self, keep_running: mp.Value, shared_list: mp.Array, name=None):
+    def __init__(self, start_video: mp.Value, keep_running: mp.Value, last_processed_frame_versions: mp.Array, name=None):
         super().__init__(name=name)
+        self.start_video = start_video
         self.keep_running = keep_running
-        self.shared_list = shared_list
+        self.last_processed_frame_versions = last_processed_frame_versions
+        self.strategy = Strategy.ALL_FRAMES_FASTEST_PROCESS
 
 
     def run(self):
         video_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
         self.finish_setup()
 
-        fps = Config.fps
-        time_between_frames = 1 / fps
+        time_between_frames = 1 / Config.fps
 
         video_path = str(os.path.join(Config.videos_dir, Config.video_name))
         capture = cv2.VideoCapture(video_path)
@@ -35,16 +36,27 @@ class VideoReaderProcess(ControlledProcess):
         print(
             f"VideoReaderProcess: Actual video dimensions width: {capture.get(cv2.CAP_PROP_FRAME_WIDTH)} height: {capture.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
 
+        while not self.start_video.value and self.keep_running.value:
+            pass
+        print(f"VideoReaderProcess: Starting video at {(time.perf_counter() - Config.program_start_time):.2f} s")
+
         while self.keep_running.value and capture.isOpened():
-            print(f"Shared list (version={video_shared_memory.last_written_version()}) : ", end=" ")
-            for shared_memory in self.shared_list:
-                print(shared_memory.value, end=" ")
-            print()
-            # if any(x.value != video_shared_memory.last_written_version() for x in self.shared_list):
-            #     continue
-            if not any(x.value == video_shared_memory.last_written_version() for x in self.shared_list):
-                print("VideoReaderProcess: Waiting for all processes to catch up")
-                continue
+            # print(f"Shared list (version={video_shared_memory.last_written_version()}) : ", end=" ")
+            # for last_processed_frame_version in self.last_processed_frame_versions:
+            #     print(last_processed_frame_version.value, end=" ")
+            # print()
+
+            if self.strategy == Strategy.ALL_FRAMES_ALL_PROCESSES:
+                if not all(shared_memory.value == video_shared_memory.last_written_version() for shared_memory in
+                           self.last_processed_frame_versions):
+                    # print("VideoReaderProcess: Waiting for all processes to catch up")
+                    continue
+            elif self.strategy == Strategy.ALL_FRAMES_FASTEST_PROCESS:
+                if not any(x.value == video_shared_memory.last_written_version() for x in self.last_processed_frame_versions):
+                    # print("VideoReaderProcess: Waiting for one process to catch up")
+                    continue
+            else:
+                pass
 
             start_time = time.perf_counter()
 

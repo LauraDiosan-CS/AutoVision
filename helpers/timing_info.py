@@ -1,5 +1,4 @@
 import time
-from itertools import count
 
 
 class TimingInfo:
@@ -71,7 +70,7 @@ class TimingInfo:
             return
 
         if parent not in self.hierarchy:
-            self.hierarchy[parent] = []
+            self.hierarchy[parent] = [label]
         if label not in self.hierarchy[parent]:  # Avoid duplicates
             self.hierarchy[parent].append(label)
 

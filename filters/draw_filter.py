@@ -87,7 +87,7 @@ class DrawFilter(BaseFilter):
 
         data.frame = frame
 
-        return super().process(data)
+        return data
 
     @staticmethod
     def visualize_road_objects(frame, road_objects: list[RoadObject], color=(255, 255, 255), initial_position=(0, 130)):

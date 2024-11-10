@@ -128,13 +128,6 @@ class TimingVisualizer:
     def plot_pie_charts(self, save_path=None):
         self.timing_info.pause_all()
 
-        print("\nHierarchy:\n")
-        for parent in self.hierarchy:
-            print(f"Parent: {parent}")
-            for child in self.hierarchy[parent]:
-                print(f"Child: {child} - {self.timings[child]} s")
-        print("\n")
-
         # Count the total number of charts to be plotted
         new_total_charts = sum(1 for children in self.hierarchy.values() if children)
 

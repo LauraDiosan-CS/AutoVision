@@ -9,9 +9,10 @@ from objects.types.road_info import RoadObject
 
 
 class ObjectDetectionFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo, visualize: bool, model_path):
+    def __init__(self, video_info: VideoInfo, visualize: bool, model_path, verbose):
         super().__init__(video_info=video_info, visualize=visualize)
         self.model = YOLO(model_path)
+        self.verbose = verbose
 
         if torch.cuda.is_available():
             print(f'{model_path} running on gpu...')
@@ -20,7 +21,7 @@ class ObjectDetectionFilter(BaseFilter):
 
         self.result = None
 
-    def pre_process_result(self, yolo_results, data: PipeData, conf_tresh=0.5):
+    def pre_process_result(self, yolo_results, data: PipeData, confidence_threshold=0.5):
         labels = yolo_results.names
         results = []
 
@@ -30,7 +31,7 @@ class ObjectDetectionFilter(BaseFilter):
 
             confidence = f'{yolo_object.boxes.conf.item(): .2f}'
 
-            if float(confidence) < conf_tresh:
+            if float(confidence) < confidence_threshold:
                 continue
             bbox_tensor_cpu = yolo_object.boxes.xyxy.cpu()
             bbox_list = [float(f'{el: .4f}') for el in bbox_tensor_cpu.tolist()[0]]
@@ -48,7 +49,6 @@ class ObjectDetectionFilter(BaseFilter):
         return sorted(results, key=lambda x: x.distance)
 
     def process(self, data):
-
         return super().process(data)
 
 
@@ -61,14 +61,14 @@ def get_distance_from_realsense(depth_frame, bbox_list):
 
 
 class SignsDetect(ObjectDetectionFilter):
-    def __init__(self, video_info: VideoInfo, visualize: bool, model_path):
-        super().__init__(video_info=video_info, visualize=visualize, model_path=model_path)
+    def __init__(self, video_info: VideoInfo, visualize: bool, model_path, verbose=False):
+        super().__init__(video_info=video_info, visualize=visualize, model_path=model_path, verbose=verbose)
 
     def process(self, data):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame, verbose=True)
+        yolo_results = self.model(data.frame, verbose=self.verbose)
         data.traffic_signs = self.pre_process_result(yolo_results[0], data, 0.3)
         data.frame = yolo_results[0].plot()
 
@@ -76,14 +76,14 @@ class SignsDetect(ObjectDetectionFilter):
 
 
 class TrafficLightDetect(ObjectDetectionFilter):
-    def __init__(self, video_info: VideoInfo, visualize: bool, model_path):
-        super().__init__(video_info=video_info, visualize=visualize, model_path=model_path)
+    def __init__(self, video_info: VideoInfo, visualize: bool, model_path, verbose=False):
+        super().__init__(video_info=video_info, visualize=visualize, model_path=model_path, verbose=verbose)
 
     def process(self, data):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame, verbose=False)
+        yolo_results = self.model(data.frame, verbose=self.verbose)
         data.traffic_lights = self.pre_process_result(yolo_results[0], data)
         data.frame = yolo_results[0].plot()
 
@@ -91,14 +91,14 @@ class TrafficLightDetect(ObjectDetectionFilter):
 
 
 class PedestrianDetect(ObjectDetectionFilter):
-    def __init__(self, video_info: VideoInfo, visualize: bool, model_path):
-        super().__init__(video_info=video_info, visualize=visualize, model_path=model_path)
+    def __init__(self, video_info: VideoInfo, visualize: bool, model_path, verbose=False):
+        super().__init__(video_info=video_info, visualize=visualize, model_path=model_path, verbose=verbose)
 
     def process(self, data):
         if torch.cuda.is_available():
             self.model.cuda()
 
-        yolo_results = self.model(data.frame, verbose=False)
+        yolo_results = self.model(data.frame, verbose=self.verbose)
         data.pedestrians = self.pre_process_result(yolo_results[0], data)
         data.frame = yolo_results[0].plot()
 

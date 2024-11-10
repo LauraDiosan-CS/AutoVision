@@ -1,5 +1,6 @@
 from collections import namedtuple
 
-VideoRois = dict[str, tuple[tuple[int, int], tuple[int, int], tuple[int, int], tuple[int, int]]]
+Coord = tuple[int, int]
+VideoRois = dict[str, tuple[Coord, Coord, Coord, Coord]]
 
 VideoInfo = namedtuple("VideoInfo", ["video_name", "video_rois", "height", "width"])

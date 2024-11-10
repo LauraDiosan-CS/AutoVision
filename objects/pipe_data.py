@@ -1,9 +1,7 @@
-import time
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
 import numpy as np
-from mpmath import timing
 
 from helpers.timing_info import TimingInfo
 from objects.types.road_info import RoadObject, RoadMarkings
@@ -15,9 +13,9 @@ class PipeData:
     depth_frame: np.array
     unfiltered_frame: np.array
     creation_time: float
+    last_touched_process: str
     timing_info: TimingInfo = field(default_factory=TimingInfo)
     processed_frames: Dict[str, List[np.array]] = field(default_factory=dict)
-    last_touched_process: str = ""
     road_markings: Optional[RoadMarkings] = None
     heading_error: Optional[float] = None
     lateral_offset: Optional[float] = None
@@ -43,7 +41,6 @@ class PipeData:
         Merge data from another PipeData instance into this one.
         """
         self.timing_info.append_hierarchy(new_pipe_data.timing_info)
-        print(f"Merged timings: {self.timing_info.hierarchy}")
 
         if new_pipe_data.frame is not None:
             self.frame = new_pipe_data.frame

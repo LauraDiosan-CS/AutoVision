@@ -1,3 +1,6 @@
+import time
+
+
 class Config:
     models_dir_path = 'objects/models/'
     videos_dir = 'videos'
@@ -20,6 +23,7 @@ class Config:
     command_url = None  # 'http://10.0.0.2:8080/control'
     video_feed_memory_name = "video_feed"
     composite_pipe_memory_name = "visualizer"
+    program_start_time = time.perf_counter()
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")
