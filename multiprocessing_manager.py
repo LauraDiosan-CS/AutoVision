@@ -2,7 +2,6 @@ import ctypes
 import multiprocessing as mp
 import pickle
 import time
-from random import random
 
 import numpy as np
 
@@ -13,14 +12,14 @@ from helpers.controlled_process import ControlledProcess
 from helpers.helpers import initialize_config
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
-from videoreaderprocess import VideoReaderProcess
+from cameraprocess import CameraProcess
 
 
 class MultiProcessingManager(ControlledProcess):
     __slots__ = ['keep_running']
 
-    def __init__(self, keep_running: mp.Value, name=None):
-        super().__init__(name=name)
+    def __init__(self, program_start_time: float, keep_running: mp.Value, name=None):
+        super().__init__(name=name, program_start_time=program_start_time)
         self.keep_running = keep_running
 
     def run(self):
@@ -30,9 +29,10 @@ class MultiProcessingManager(ControlledProcess):
         last_processed_frame_versions = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
         start_video = mp.Value('b', False)
 
-        video_reader_process = VideoReaderProcess(start_video=start_video, keep_running=self.keep_running, last_processed_frame_versions=last_processed_frame_versions)
-        video_reader_process.start()
-        video_reader_process.wait_for_setup()
+        camera_process = CameraProcess(start_video=start_video, keep_running=self.keep_running,
+                                        last_processed_frame_versions=last_processed_frame_versions, program_start_time=self.program_start_time)
+        camera_process.start()
+        camera_process.wait_for_setup()
 
         pipelines, _, _ = initialize_config()
 
@@ -53,7 +53,8 @@ class MultiProcessingManager(ControlledProcess):
                                               keep_running=self.keep_running,
                                               last_processed_frame_version=last_processed_frame_versions[index],
                                               artificial_delay=artificial_delay,
-                                              process_name=pipeline.name)
+                                              process_name=pipeline.name,
+                                                program_start_time=self.program_start_time)
             process.start()
             parallel_processes.append(process)
 
@@ -78,12 +79,12 @@ class MultiProcessingManager(ControlledProcess):
                 if pipe_data_bytes:
                     random_nr = np.random.randint(0, 10000)
                     print(
-                        f"New Pipe Data: {random_nr} {(time.perf_counter() - Config.program_start_time):.2f} s")
+                        f"New Pipe Data: {random_nr} {(time.perf_counter() - self.program_start_time):.2f} s")
 
 
                     new_pipe_data: PipeData = pickle.loads(pipe_data_bytes)
                     new_pipe_data.timing_info.stop("Transfer Data (SPF -> MM)")
-                    print(f"New Pipe Data: {random_nr}:{new_pipe_data.last_touched_process} {(time.perf_counter() - Config.program_start_time):.2f} s")
+                    print(f"New Pipe Data: {random_nr}:{new_pipe_data.last_touched_process} {(time.perf_counter() - self.program_start_time):.2f} s")
 
                     new_pipe_data.timing_info.start("Merge Data",
                                                     parent=f"Data Lifecycle {new_pipe_data.last_touched_process}")

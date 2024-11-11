@@ -14,9 +14,9 @@ class Strategy(Enum):
     ALL_FRAMES_FASTEST_PROCESS = 2
     ALL_FRAMES_ALL_PROCESSES = 3
 
-class VideoReaderProcess(ControlledProcess):
-    def __init__(self, start_video: mp.Value, keep_running: mp.Value, last_processed_frame_versions: mp.Array, name=None):
-        super().__init__(name=name)
+class CameraProcess(ControlledProcess):
+    def __init__(self, start_video: mp.Value, keep_running: mp.Value, last_processed_frame_versions: mp.Array, program_start_time: float, name: str = None):
+        super().__init__(name=name, program_start_time=program_start_time)
         self.start_video = start_video
         self.keep_running = keep_running
         self.last_processed_frame_versions = last_processed_frame_versions
@@ -38,7 +38,7 @@ class VideoReaderProcess(ControlledProcess):
 
         while not self.start_video.value and self.keep_running.value:
             pass
-        print(f"VideoReaderProcess: Starting video at {(time.perf_counter() - Config.program_start_time):.2f} s")
+        print(f"VideoReaderProcess: Starting video at {(time.perf_counter() - self.program_start_time):.2f} s")
 
         while self.keep_running.value and capture.isOpened():
             # print(f"Shared list (version={video_shared_memory.last_written_version()}) : ", end=" ")

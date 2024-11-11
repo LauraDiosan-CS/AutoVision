@@ -14,8 +14,8 @@ from objects.pipe_data import PipeData
 class SequentialFilterProcess(ControlledProcess):
     __slots__ = ['filters', 'keep_running', 'last_processed_frame_version', 'artificial_delay']
 
-    def __init__(self, filters: list[BaseFilter], keep_running: mp.Value, last_processed_frame_version: mp.Value, artificial_delay: float = 0.0, process_name=None):
-        super().__init__(name=process_name)
+    def __init__(self, filters: list[BaseFilter], keep_running: mp.Value, last_processed_frame_version: mp.Value, artificial_delay: float = 0.0, program_start_time: float = 0.0, process_name: str = None):
+        super().__init__(name=process_name, program_start_time=program_start_time)
         self.filters = filters
         self.keep_running = keep_running
         self.last_processed_frame_version = last_processed_frame_version
@@ -31,7 +31,7 @@ class SequentialFilterProcess(ControlledProcess):
 
             if frame_as_bytes is None: # End of video
                 break
-            print(f"{self.name} received frame at {(time.perf_counter() - Config.program_start_time):.2f} s")
+            print(f"{self.name} received frame at {(time.perf_counter() - self.program_start_time):.2f} s")
 
             self.last_processed_frame_version.value = video_feed.last_read_version()
 
@@ -56,7 +56,7 @@ class SequentialFilterProcess(ControlledProcess):
             memory_writer.write(data_as_bytes)
 
             del data
-            print(f"{self.name} finished processing frame at {(time.perf_counter() - Config.program_start_time):.2f} s")
+            print(f"{self.name} finished processing frame at {(time.perf_counter() - self.program_start_time):.2f} s")
 
         memory_writer.close()
         print(f"Exiting {self.name}")

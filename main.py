@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from config import Config
 from filters.draw_filter import DrawFilter
 from helpers.helpers import draw_rois_and_wait, get_roi_bbox_for_video, save_frames, extract_pipeline_names, \
-    stack_images_v5
+    stack_images_v3
 from helpers.timingvisualizer import TimingVisualizer
 from multiprocessing_manager import MultiProcessingManager
 from objects.pipe_data import PipeData
@@ -22,6 +22,8 @@ from ripc import SharedMemoryReader
 
 
 def main():
+    program_start_time = time.perf_counter()
+
     timer = TimingVisualizer()
     timer.start('Overall Timer')
     timer.start('Setup', parent='Overall Timer')
@@ -29,7 +31,7 @@ def main():
 
     keep_running = mp.Value('b', True)
 
-    mp_manager = MultiProcessingManager(keep_running=keep_running)
+    mp_manager = MultiProcessingManager(keep_running=keep_running, program_start_time=program_start_time)
     mp_manager.start()
     mp_manager.wait_for_setup()
 
@@ -81,7 +83,7 @@ def main():
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
             pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
             pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
-            print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - Config.program_start_time):.2f} s")
+            print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - program_start_time):.2f}:{program_start_time}  s")
             # print()
             # print(f"Timing_Info Viz pre: {pipe_data.timing_info}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
@@ -106,7 +108,7 @@ def main():
                         # add black frame
                         squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
                 squashed_frames.append([pipe_data.frame])
-                final_img = stack_images_v5(1, squashed_frames)
+                final_img = stack_images_v3(1, squashed_frames)
             else:
                 final_img = pipe_data.frame
 
