@@ -9,7 +9,6 @@ class Config:
     pipeline_config_path = 'objects/config/parallel_pipeline_config.json'
     roi_config_path = 'objects/config/roi.json'
     video_name = "Raw_Car_Pov_Final.mp4" #"curved_lines_2024_1.avi"
-    apply_visualizer = True
     save_video = False
     save_processed_video = False
     http_connection_failed_limit = 0

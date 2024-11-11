@@ -10,10 +10,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from config import Config
-from filters.draw_filter import DrawFilter
 from helpers.helpers import draw_rois_and_wait, get_roi_bbox_for_video, save_frames, extract_pipeline_names, \
     stack_images_v3
 from helpers.timingvisualizer import TimingVisualizer
+from helpers.visualize_data import visualize_data
 from multiprocessing_manager import MultiProcessingManager
 from objects.pipe_data import PipeData
 from objects.types.save_info import SaveInfo
@@ -61,8 +61,6 @@ def main():
     video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
                            width=Config.width, video_rois=video_rois)
 
-    draw_filter = DrawFilter(video_info=video_info)
-
     pipeline_names = extract_pipeline_names()
 
     replay_speed = 1
@@ -83,34 +81,31 @@ def main():
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
             pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
             pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
-            print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - program_start_time):.2f}:{program_start_time}  s")
+            print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - program_start_time):.2f} s")
             # print()
             # print(f"Timing_Info Viz pre: {pipe_data.timing_info}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
             # print(f"Timer hierarchy after append: {timer.hierarchy}")
             # print(f"Timing_Info Viz post: {timer.timing_info}")
             # print()
-            if iteration_counter % Config.fps == 0:
-                # print("Plotting pie charts")
-                timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
-            # end_time = time.time() - pipe_data.creation_time
-            # print(f"PipeData with {pipe_data.last_touched_process} took {end_time} seconds equivalent to fps: {1/end_time}")
 
-            if Config.apply_visualizer:
-                pipe_data = draw_filter.process(pipe_data)
+            # if iteration_counter % Config.fps == 0:
+            #     print("Plotting pie charts")
+            #     timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
 
             if pipe_data.processed_frames is not None:
-                squashed_frames = []
+                frame = visualize_data(video_info=video_info, data=pipe_data)
+                squashed_frames = [[frame]]
+
                 for pipeline_name in pipeline_names:
                     if pipeline_name in pipe_data.processed_frames:
                         squashed_frames.append(pipe_data.processed_frames[pipeline_name])
                     else:
                         # add black frame
                         squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
-                squashed_frames.append([pipe_data.frame])
                 final_img = stack_images_v3(1, squashed_frames)
             else:
-                final_img = pipe_data.frame
+                final_img = frame
 
             cv2.imshow('CarVision', final_img)
             # time.sleep(1)

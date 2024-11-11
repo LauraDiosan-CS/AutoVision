@@ -31,13 +31,14 @@ class SequentialFilterProcess(ControlledProcess):
 
             if frame_as_bytes is None: # End of video
                 break
-            print(f"{self.name} received frame at {(time.perf_counter() - self.program_start_time):.2f} s")
+            # print(f"{self.name} received frame at {(time.perf_counter() - self.program_start_time):.2f} s")
 
             self.last_processed_frame_version.value = video_feed.last_read_version()
 
             frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
 
             data = PipeData(frame=frame,
+                            frame_version=video_feed.last_read_version(),
                             depth_frame=None,
                             unfiltered_frame=frame,
                             creation_time=time.perf_counter(),
@@ -56,7 +57,7 @@ class SequentialFilterProcess(ControlledProcess):
             memory_writer.write(data_as_bytes)
 
             del data
-            print(f"{self.name} finished processing frame at {(time.perf_counter() - self.program_start_time):.2f} s")
+            # print(f"{self.name} finished processing frame at {(time.perf_counter() - self.program_start_time):.2f} s")
 
         memory_writer.close()
         print(f"Exiting {self.name}")

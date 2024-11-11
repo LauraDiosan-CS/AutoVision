@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+from typing import Optional
 
 import numpy as np
 
@@ -10,20 +10,21 @@ from objects.types.road_info import RoadObject, RoadMarkings
 @dataclass(slots=True)
 class PipeData:
     frame: np.array
+    frame_version: int
     depth_frame: np.array
     unfiltered_frame: np.array
     creation_time: float
     last_touched_process: str
     timing_info: TimingInfo = field(default_factory=TimingInfo)
-    processed_frames: Dict[str, List[np.array]] = field(default_factory=dict)
+    processed_frames: dict[str, list[np.array]] = field(default_factory=dict)
     road_markings: Optional[RoadMarkings] = None
     heading_error: Optional[float] = None
     lateral_offset: Optional[float] = None
-    traffic_signs: List[RoadObject] = field(default_factory=list)
-    traffic_lights: List[RoadObject] = field(default_factory=list)
-    pedestrians: List[RoadObject] = field(default_factory=list)
-    horizontal_lines: List[RoadObject] = field(default_factory=list)
-    command: str = ""
+    traffic_signs: list[RoadObject] = field(default_factory=list)
+    traffic_lights: list[RoadObject] = field(default_factory=list)
+    pedestrians: list[RoadObject] = field(default_factory=list)
+    horizontal_lines: list[RoadObject] = field(default_factory=list)
+    command: str = None
 
 
     def add_processed_frame(self, frame):
@@ -42,30 +43,34 @@ class PipeData:
         """
         self.timing_info.append_hierarchy(new_pipe_data.timing_info)
 
-        if new_pipe_data.frame is not None:
+        if new_pipe_data.frame_version > self.frame_version:
             self.frame = new_pipe_data.frame
-        if new_pipe_data.depth_frame is not None:
             self.depth_frame = new_pipe_data.depth_frame
-        if new_pipe_data.unfiltered_frame is not None:
+            self.frame_version = new_pipe_data.frame_version
             self.unfiltered_frame = new_pipe_data.unfiltered_frame
+
+        self.last_touched_process = new_pipe_data.last_touched_process
+
+        for process_name, frames in new_pipe_data.processed_frames.items():
+            self.processed_frames[process_name] = frames
+
         if new_pipe_data.road_markings is not None:
             self.road_markings = new_pipe_data.road_markings
         if new_pipe_data.heading_error is not None:
             self.heading_error = new_pipe_data.heading_error
-        if new_pipe_data.last_touched_process != "":
-            self.last_touched_process = new_pipe_data.last_touched_process
         if new_pipe_data.lateral_offset is not None:
             self.lateral_offset = new_pipe_data.lateral_offset
-        if new_pipe_data.command != "":
+        if new_pipe_data.command is not None:
             self.command = new_pipe_data.command
-        if new_pipe_data.traffic_signs:
+        if new_pipe_data.traffic_signs is not None: # [] is a valid value
             self.traffic_signs = new_pipe_data.traffic_signs
-        if new_pipe_data.traffic_lights:
+        if new_pipe_data.traffic_lights is not None:
             self.traffic_lights = new_pipe_data.traffic_lights
-        if new_pipe_data.pedestrians:
+        if new_pipe_data.pedestrians is not None:
             self.pedestrians = new_pipe_data.pedestrians
-        if new_pipe_data.horizontal_lines:
+        if new_pipe_data.horizontal_lines is not None:
             self.horizontal_lines = new_pipe_data.horizontal_lines
+
 
         # attributes = [
         #     'frame',
@@ -89,6 +94,4 @@ class PipeData:
         #     if new_value or new_value == 0:  # Check for non-None or valid 0
         #         setattr(self, attr, new_value)
 
-        for process_name, frames in new_pipe_data.processed_frames.items():
-            self.processed_frames[process_name] = frames
         return self

@@ -45,16 +45,17 @@ class MultiProcessingManager(ControlledProcess):
                 case "sign_detection":
                     artificial_delay = 0.1
                 case "traffic_light_detection":
-                    artificial_delay = 0.2
+                    artificial_delay = 0.15
                 case "pedestrian_detection":
-                    artificial_delay = 0.3
+                    artificial_delay = 0.2
+            # artificial_delay = 0.0
 
             process = SequentialFilterProcess(filters=pipeline.filters,
                                               keep_running=self.keep_running,
                                               last_processed_frame_version=last_processed_frame_versions[index],
                                               artificial_delay=artificial_delay,
                                               process_name=pipeline.name,
-                                                program_start_time=self.program_start_time)
+                                              program_start_time=self.program_start_time)
             process.start()
             parallel_processes.append(process)
 
@@ -66,7 +67,7 @@ class MultiProcessingManager(ControlledProcess):
 
         shared_memory_readers = [SharedMemoryReader(name=pipeline.name) for pipeline in pipelines]
 
-        current_pipe_data = PipeData(frame=None, depth_frame=None, unfiltered_frame=None, last_touched_process="None",
+        current_pipe_data = PipeData(frame=None, frame_version=-1, depth_frame=None, unfiltered_frame=None, last_touched_process="None",
                                      creation_time=time.time())
         current_pipe_data.timing_info.start("Process Frame")
 
@@ -77,14 +78,10 @@ class MultiProcessingManager(ControlledProcess):
                 pipe_data_bytes = reader.read()
 
                 if pipe_data_bytes:
-                    random_nr = np.random.randint(0, 10000)
-                    print(
-                        f"New Pipe Data: {random_nr} {(time.perf_counter() - self.program_start_time):.2f} s")
-
 
                     new_pipe_data: PipeData = pickle.loads(pipe_data_bytes)
                     new_pipe_data.timing_info.stop("Transfer Data (SPF -> MM)")
-                    print(f"New Pipe Data: {random_nr}:{new_pipe_data.last_touched_process} {(time.perf_counter() - self.program_start_time):.2f} s")
+                    # print(f"New Pipe Data: {new_pipe_data.last_touched_process} {(time.perf_counter() - self.program_start_time):.2f} s")
 
                     new_pipe_data.timing_info.start("Merge Data",
                                                     parent=f"Data Lifecycle {new_pipe_data.last_touched_process}")
