@@ -3,16 +3,14 @@ import multiprocessing as mp
 import pickle
 import time
 
-import numpy as np
-
-from ripc import SharedMemoryWriter, SharedMemoryReader
+from ripc import SharedMemoryWriter, SharedMemoryReader, SharedMemoryCircularQueue
 from config import Config
 from controllers.controller import Controller
 from helpers.controlled_process import ControlledProcess
 from helpers.helpers import initialize_config
 from objects.pipe_data import PipeData
 from objects.sequential_filter_process import SequentialFilterProcess
-from cameraprocess import CameraProcess
+from mockcameraprocess import MockCameraProcess
 
 
 class MultiProcessingManager(ControlledProcess):
@@ -23,16 +21,19 @@ class MultiProcessingManager(ControlledProcess):
         self.keep_running = keep_running
 
     def run(self):
-        composite_pipe_writer = SharedMemoryWriter(name=Config.composite_pipe_memory_name, size=Config.pipe_memory_size)
+        control_loop_pipe_writer = SharedMemoryWriter(name=Config.control_loop_memory_name, size=Config.pipe_memory_size)
+        visualization_queue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.pipe_memory_size, Config.visualizer_queue_element_count)
         self.finish_setup()
 
         last_processed_frame_versions = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
         start_video = mp.Value('b', False)
 
-        camera_process = CameraProcess(start_video=start_video, keep_running=self.keep_running,
-                                        last_processed_frame_versions=last_processed_frame_versions, program_start_time=self.program_start_time)
+        camera_process = MockCameraProcess(start_video=start_video, keep_running=self.keep_running,
+                                           last_processed_frame_versions=last_processed_frame_versions, program_start_time=self.program_start_time)
         camera_process.start()
         camera_process.wait_for_setup()
+
+        print("Camera process started")
 
         pipelines, _, _ = initialize_config()
 
@@ -61,9 +62,11 @@ class MultiProcessingManager(ControlledProcess):
 
         for process in parallel_processes:
             process.wait_for_setup()
+        print("All SFP started")
 
         controller_process = Controller(self.keep_running)
         controller_process.start()
+        print("Controller process started")
 
         shared_memory_readers = [SharedMemoryReader(name=pipeline.name) for pipeline in pipelines]
 
@@ -73,9 +76,11 @@ class MultiProcessingManager(ControlledProcess):
 
         start_video.value = True # All Setup finished allow the video reader to start
 
+        is_full = False
+
         while self.keep_running.value:
             for reader in shared_memory_readers:
-                pipe_data_bytes = reader.read()
+                pipe_data_bytes = reader.try_read()
 
                 if pipe_data_bytes:
 
@@ -92,12 +97,18 @@ class MultiProcessingManager(ControlledProcess):
                     current_pipe_data.timing_info.start("Transfer Data (MM -> Viz+)",
                                                         parent=f"Data Lifecycle {current_pipe_data.last_touched_process}")
                     # print(f"Timing_Info MM -> Viz: {current_pipe_data.timing_info}")
-                    composite_pipe_writer.write(pickle.dumps(current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL))
+                    pickled_pipe_data = pickle.dumps(current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
 
+                    control_loop_pipe_writer.write(pickled_pipe_data)
+                    visualization_queue.try_write(pickled_pipe_data)
                     current_pipe_data.timing_info.remove_recursive(
                         f"Data Lifecycle {current_pipe_data.last_touched_process}")
 
-        composite_pipe_writer.close()
+            if visualization_queue.is_full() and not is_full:
+                print(f"!!! Visualization queue full with {len(visualization_queue)} elements !!!")
+                is_full = True
+
+        control_loop_pipe_writer.close()
         self.join_all_processes(controller_process, parallel_processes)
 
     @staticmethod

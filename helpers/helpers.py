@@ -58,17 +58,25 @@ def parse_pipeline_configuration(JSON_pipelines_config: JSONPipelinesTYPE, video
 
     return pipelines
 
-def get_roi_bbox_for_video(video_name, roi_config_path: str) -> VideoRois:
+
+def get_roi_bbox_for_video(video_name, video_width, video_height, roi_config_path: str) -> VideoRois:
     if not os.path.exists(roi_config_path):
         raise FileNotFoundError(f"File not found: {roi_config_path}")
 
     with open(roi_config_path, 'r') as file:
         all_video_rois: dict[str, VideoRois] = json.load(file)
 
+    # Check if video name exists in the configuration
     if video_name in all_video_rois.keys():
         return all_video_rois[video_name]
+
+    # Fallback to default based on video resolution
+    resolution_key = f"{video_width}x{video_height}"
+    if resolution_key in all_video_rois.keys():
+        return all_video_rois[resolution_key]
     else:
-        raise ValueError(f"Video name {video_name} not found in {roi_config_path}")
+        raise ValueError(
+            f"Video name {video_name} not found and no default resolution for {resolution_key} in {roi_config_path}")
 
 
 def update_roi_bbox_for_video(video_name, roi_bbox, roi_config_path: str):
@@ -82,7 +90,7 @@ def update_roi_bbox_for_video(video_name, roi_bbox, roi_config_path: str):
 
 
 def initialize_config() -> tuple[list[PipelineConfig], VideoInfo, VideoRois]:
-    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.roi_config_path)
+    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.width, Config.height, Config.roi_config_path)
     print("\nVideo ROIs:")
     for roi_type, roi_bbox in video_rois.items():
         print(f"ROI type: {roi_type}, ROI bbox: {roi_bbox}")

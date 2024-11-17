@@ -3,8 +3,8 @@ from enum import Enum
 from objects.types.road_info import RoadObject
 
 
-class ControlAction(Enum):
-    Lanekeeping = "LaneKeeping"
+class Behaviour(Enum):
+    LaneKeeping = "LaneKeeping"
     Pause = "Pause"
     Pause3Seconds = "Pause3Seconds"
     Resume = "Resume"
@@ -24,9 +24,9 @@ class BehaviourPlanner:
                       horizontal_lines: list[RoadObject],
                       traffic_lights: list[RoadObject],
                       pedestrians: list[RoadObject],
-                      ) -> ControlAction:
+                      ) -> Behaviour:
 
-        command = ControlAction.Lanekeeping
+        command = Behaviour.LaneKeeping
 
         if self.paused:
             if (len(pedestrians) == 0 or pedestrians[0].distance > self.PEDESTRIAN_THRESHOLD_DISTANCE) \
@@ -36,18 +36,18 @@ class BehaviourPlanner:
                                  )
             ):
                 self.paused = False
-                command = ControlAction.Resume
+                command = Behaviour.Resume
         elif self.stop_after_line_invisible:
             if len(horizontal_lines) > 0:
                 self.stop_after_line_invisible = False
                 match self.reason:
                     case "Stop":
-                        command = ControlAction.Pause3Seconds
+                        command = Behaviour.Pause3Seconds
                     case "Pedestrian":
-                        command = ControlAction.Pause
+                        command = Behaviour.Pause
                         self.paused = True
                     case "Red light":
-                        command = ControlAction.Pause
+                        command = Behaviour.Pause
                         self.paused = True
         elif len(traffic_signs) > 0 and traffic_signs[0].distance < self.TRAFFIC_SIGN_THRESHOLD_DISTANCE:
             match traffic_signs[0].label:

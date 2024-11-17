@@ -14,7 +14,7 @@ class Strategy(Enum):
     ALL_FRAMES_FASTEST_PROCESS = 2
     ALL_FRAMES_ALL_PROCESSES = 3
 
-class CameraProcess(ControlledProcess):
+class MockCameraProcess(ControlledProcess):
     def __init__(self, start_video: mp.Value, keep_running: mp.Value, last_processed_frame_versions: mp.Array, program_start_time: float, name: str = None):
         super().__init__(name=name, program_start_time=program_start_time)
         self.start_video = start_video
@@ -24,53 +24,62 @@ class CameraProcess(ControlledProcess):
 
 
     def run(self):
-        video_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
+        camera_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
         self.finish_setup()
 
         time_between_frames = 1 / Config.fps
 
         video_path = str(os.path.join(Config.videos_dir, Config.video_name))
         capture = cv2.VideoCapture(video_path)
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, Config.width)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, Config.height)
-        print(
-            f"VideoReaderProcess: Actual video dimensions width: {capture.get(cv2.CAP_PROP_FRAME_WIDTH)} height: {capture.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+
+        # Get the actual video dimensions
+        actual_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        # Determine if resizing is necessary
+        resize_needed = actual_width != Config.width or actual_height != Config.height
+
+        print(f"MockCameraProcess: Actual video width: {actual_width} height: {actual_height}, resize_needed: {resize_needed}")
 
         while not self.start_video.value and self.keep_running.value:
             pass
-        print(f"VideoReaderProcess: Starting video at {(time.perf_counter() - self.program_start_time):.2f} s")
+        print(f"MockCameraProcess: Starting video at {(time.perf_counter() - self.program_start_time):.2f} s")
 
         while self.keep_running.value and capture.isOpened():
+            start_time = time.perf_counter()
+
             # print(f"Shared list (version={video_shared_memory.last_written_version()}) : ", end=" ")
             # for last_processed_frame_version in self.last_processed_frame_versions:
             #     print(last_processed_frame_version.value, end=" ")
             # print()
 
             if self.strategy == Strategy.ALL_FRAMES_ALL_PROCESSES:
-                if not all(shared_memory.value == video_shared_memory.last_written_version() for shared_memory in
+                if not all(shared_memory.value == camera_shared_memory.last_written_version() for shared_memory in
                            self.last_processed_frame_versions):
                     # print("VideoReaderProcess: Waiting for all processes to catch up")
                     continue
             elif self.strategy == Strategy.ALL_FRAMES_FASTEST_PROCESS:
-                if not any(x.value == video_shared_memory.last_written_version() for x in self.last_processed_frame_versions):
+                if not any(x.value == camera_shared_memory.last_written_version() for x in self.last_processed_frame_versions):
                     # print("VideoReaderProcess: Waiting for one process to catch up")
                     continue
             else:
                 pass
 
-            start_time = time.perf_counter()
-
             ret, frame = capture.read()
             if not ret:
                 break
 
-            video_shared_memory.write(frame.tobytes())
+            # Resize the frame to the desired resolution defined in the Config
+            if resize_needed:
+                frame = cv2.resize(frame, (Config.width, Config.height), interpolation=cv2.INTER_LINEAR)
+
+            camera_shared_memory.write(frame.tobytes())
 
             end_time = time.perf_counter() - start_time
-            time_to_wait = time_between_frames - end_time
+            time_to_wait = time_between_frames - end_time # make sure video is played at the correct fps
             if time_to_wait > 0:
                 time.sleep(time_to_wait)
 
-        video_shared_memory.close()
+        camera_shared_memory.close()
         capture.release()
-        print("VideoReaderProcess: Video ended")
+        print("MockCameraProcess: Video ended")

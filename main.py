@@ -18,7 +18,7 @@ from multiprocessing_manager import MultiProcessingManager
 from objects.pipe_data import PipeData
 from objects.types.save_info import SaveInfo
 from objects.types.video_info import VideoRois, VideoInfo
-from ripc import SharedMemoryReader
+from ripc import SharedMemoryCircularQueue
 
 
 def main():
@@ -35,7 +35,7 @@ def main():
     mp_manager.start()
     mp_manager.wait_for_setup()
 
-    visualizer_memory_reader = SharedMemoryReader(name=Config.composite_pipe_memory_name)
+    visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.open(Config.visualization_memory_name)
 
     save_queue = None
     save_process = None
@@ -57,7 +57,7 @@ def main():
                                         save_info))
         save_process.start()
 
-    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.roi_config_path)
+    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.width, Config.height, Config.roi_config_path)
     video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
                            width=Config.width, video_rois=video_rois)
 
@@ -73,7 +73,10 @@ def main():
 
     while True:
         for i in range(frames_to_skip + 1): # this doesn't check if there are enough frames to skip
-            pipe_data_bytes = visualizer_memory_reader.read()
+            # print(len(visualization_queue))
+            pipe_data_bytes = visualization_queue.read_all()
+            pipe_data_bytes = pipe_data_bytes[-1] if pipe_data_bytes else None
+            pass
 
         if pipe_data_bytes is not None:
             iteration_counter += 1

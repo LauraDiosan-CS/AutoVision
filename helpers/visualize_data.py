@@ -70,8 +70,8 @@ def draw_car_position(frame, car_position, color=(2, 135, 247), radius=20):
     draw_points(frame, [car_position], color=color, radius=radius)
 
 
-def draw_command(frame, command: str):
-    put_text(frame, f'Command: {command}', position=(0, 20), color=(0, 0, 255))
+def display_behaviour(frame, behaviour: str):
+    put_text(frame, f'Behaviour: {behaviour}', position=(0, 20), color=(0, 0, 255))
 
 
 def visualize_data(video_info: VideoInfo, data: PipeData) -> PipeData:
@@ -82,7 +82,7 @@ def visualize_data(video_info: VideoInfo, data: PipeData) -> PipeData:
 
     frame = data.unfiltered_frame.copy()
     draw_car_position(frame, car_position)
-    draw_command(frame, data.command)
+    display_behaviour(frame, data.behaviour)
 
     cv2.line(frame, (0, 600), (frame.shape[1], 600), color=(255, 255, 255), thickness=3)
 

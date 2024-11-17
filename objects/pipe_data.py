@@ -24,7 +24,7 @@ class PipeData:
     traffic_lights: list[RoadObject] = field(default_factory=list)
     pedestrians: list[RoadObject] = field(default_factory=list)
     horizontal_lines: list[RoadObject] = field(default_factory=list)
-    command: str = None
+    behaviour: str = None
 
 
     def add_processed_frame(self, frame):
@@ -60,8 +60,8 @@ class PipeData:
             self.heading_error = new_pipe_data.heading_error
         if new_pipe_data.lateral_offset is not None:
             self.lateral_offset = new_pipe_data.lateral_offset
-        if new_pipe_data.command is not None:
-            self.command = new_pipe_data.command
+        if new_pipe_data.behaviour is not None:
+            self.behaviour = new_pipe_data.behaviour
         if new_pipe_data.traffic_signs is not None: # [] is a valid value
             self.traffic_signs = new_pipe_data.traffic_signs
         if new_pipe_data.traffic_lights is not None:

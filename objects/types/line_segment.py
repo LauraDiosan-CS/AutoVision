@@ -7,27 +7,27 @@ class LineSegment:
         self.slope = (upper_y - lower_y) / (upper_x - lower_x) if upper_x - lower_x != 0 else np.inf
 
     @property
-    def lower_x(self):
+    def lower_x(self) -> int:
         return self.coordinates[0][0]
 
     @property
-    def lower_y(self):
+    def lower_y(self) -> int:
         return self.coordinates[0][1]
 
     @property
-    def lower_point(self):
+    def lower_point(self) -> tuple[int, int]:
         return self.coordinates[0]
 
     @property
-    def upper_x(self):
+    def upper_x(self)-> int:
         return self.coordinates[1][0]
 
     @property
-    def upper_y(self):
+    def upper_y(self) -> int:
         return self.coordinates[1][1]
 
     @property
-    def upper_point(self):
+    def upper_point(self) -> tuple[int, int]:
         return self.coordinates[1]
 
     def compute_vertical_distance(self):
