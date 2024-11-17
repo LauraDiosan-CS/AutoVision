@@ -1,11 +1,5 @@
-/trafficSigns_extension/
-laneDetect/
 *.rar
 *.pyc
+.idea/
 trash/
-videos/
-test2.py
-test.py
-objects/models/custom_yolov8s-world.pt
-objects/models/yolov8s-world.pt
-
+files/

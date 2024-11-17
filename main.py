@@ -9,15 +9,16 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
-from config import Config
-from helpers.helpers import draw_rois_and_wait, get_roi_bbox_for_video, save_frames, extract_pipeline_names, \
-    stack_images_v3
-from helpers.timingvisualizer import TimingVisualizer
-from helpers.visualize_data import visualize_data
-from multiprocessing_manager import MultiProcessingManager
-from objects.pipe_data import PipeData
-from objects.types.save_info import SaveInfo
-from objects.types.video_info import VideoRois, VideoInfo
+from configuration.config import Config
+from perception.helpers import save_frames, get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
+    draw_rois_and_wait
+from perception.objects.pipe_data import PipeData
+from perception.objects.save_info import SaveInfo
+from perception.objects.timingvisualizer import TimingVisualizer
+from perception.objects.video_info import VideoRois, VideoInfo
+from perception.visualize_data import visualize_data
+from processes.multiprocessing_manager import MultiProcessingManager
+
 from ripc import SharedMemoryCircularQueue
 
 
@@ -73,9 +74,9 @@ def main():
 
     while True:
         for i in range(frames_to_skip + 1): # this doesn't check if there are enough frames to skip
-            # print(len(visualization_queue))
-            pipe_data_bytes = visualization_queue.read_all()
-            pipe_data_bytes = pipe_data_bytes[-1] if pipe_data_bytes else None
+            pipe_data_bytes = visualization_queue.try_read()
+            # print(len(visualization_queue), pipe_data_bytes is not None)
+            # pipe_data_bytes = pipe_data_bytes[-1] if pipe_data_bytes else None
             pass
 
         if pipe_data_bytes is not None:
