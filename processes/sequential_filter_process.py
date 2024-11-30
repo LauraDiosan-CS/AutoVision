@@ -37,7 +37,6 @@ class SequentialFilterProcess(ControlledProcess):
             self.last_processed_frame_version.value = video_feed.last_read_version()
 
             frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
-
             data = PipeData(frame=frame,
                             frame_version=video_feed.last_read_version(),
                             depth_frame=None,

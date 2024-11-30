@@ -58,17 +58,19 @@ class MockCameraProcess(ControlledProcess):
             if self.strategy == Strategy.ALL_FRAMES_ALL_PROCESSES:
                 if not all(shared_memory.value == camera_shared_memory.last_written_version() for shared_memory in
                            self.last_processed_frame_versions):
-                    # print("VideoReaderProcess: Waiting for all processes to catch up")
+                    # print("CameraProcess: Waiting for all processes to catch up")
                     continue
             elif self.strategy == Strategy.ALL_FRAMES_FASTEST_PROCESS:
                 if not any(x.value == camera_shared_memory.last_written_version() for x in self.last_processed_frame_versions):
-                    # print("VideoReaderProcess: Waiting for one process to catch up")
+                    # print("CameraProcess: Waiting for one process to catch up")
                     continue
             else:
+                print("CameraProcess: Invalid strategy")
                 pass
 
             ret, frame = capture.read()
             if not ret:
+                print("MockCameraProcess: Video ended")
                 break
 
             # Resize the frame to the desired resolution defined in the Config

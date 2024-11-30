@@ -23,7 +23,7 @@ class MultiProcessingManager(ControlledProcess):
 
     def run(self):
         control_loop_pipe_writer = SharedMemoryWriter(name=Config.control_loop_memory_name, size=Config.pipe_memory_size)
-        visualization_queue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.pipe_memory_size, Config.visualizer_queue_element_count)
+        visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.pipe_memory_size, Config.visualizer_queue_element_count)
         self.finish_setup()
 
         last_processed_frame_versions = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
@@ -101,6 +101,7 @@ class MultiProcessingManager(ControlledProcess):
                     pickled_pipe_data = pickle.dumps(current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
 
                     control_loop_pipe_writer.write(pickled_pipe_data)
+
                     visualization_queue.try_write(pickled_pipe_data)
                     current_pipe_data.timing_info.remove_recursive(
                         f"Data Lifecycle {current_pipe_data.last_touched_process}")

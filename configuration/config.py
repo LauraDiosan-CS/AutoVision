@@ -21,7 +21,7 @@ class Config:
     height = 720
     image_size = width * height * 3
     pipe_memory_size = image_size * 10
-    visualizer_strategy = VisualizationStrategy.ALL_FRAMES
+    visualizer_strategy = VisualizationStrategy.NEWEST_FRAME
     visualizer_queue_element_count = fps * 4 * 2
     command_url = None  # 'http://10.0.0.2:8080/control'
     video_feed_memory_name = "video_feed"

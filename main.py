@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
-from configuration.config import Config
+from configuration.config import Config, VisualizationStrategy
 from perception.helpers import save_frames, get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
     draw_rois_and_wait
 from perception.objects.pipe_data import PipeData
@@ -74,7 +74,14 @@ def main():
 
     while True:
         for i in range(frames_to_skip + 1): # this doesn't check if there are enough frames to skip
-            pipe_data_bytes = visualization_queue.try_read()
+            if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
+                list_pipe_data_bytes = visualization_queue.read_all()
+                if list_pipe_data_bytes == []:
+                    pipe_data_bytes = None
+                else:
+                    pipe_data_bytes = list_pipe_data_bytes[-1]
+            elif Config.visualizer_strategy == VisualizationStrategy.ALL_FRAMES:
+                pipe_data_bytes = visualization_queue.try_read()
             # print(len(visualization_queue), pipe_data_bytes is not None)
             # pipe_data_bytes = pipe_data_bytes[-1] if pipe_data_bytes else None
             pass
@@ -85,7 +92,7 @@ def main():
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
             pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
             pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
-            print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - program_start_time):.2f} s")
+            # print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - program_start_time):.2f} s")
             # print()
             # print(f"Timing_Info Viz pre: {pipe_data.timing_info}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
@@ -112,7 +119,6 @@ def main():
                 final_img = frame
 
             cv2.imshow('CarVision', final_img)
-            # time.sleep(1)
 
             if Config.save_processed_video and save_queue is not None:
                 print("Processed Save Queue size : ", save_queue.qsize())
@@ -185,15 +191,6 @@ def update_config(config, args):
 
 
 if __name__ == '__main__':
-    # img1 = np.full((100, 100, 3), (0, 0, 255), dtype=np.uint8)  # Red image (BGR format)
-    # img2 = np.full((100, 100, 3), (0, 255, 0), dtype=np.uint8)  # Green image (BGR format)
-    # img3 = np.full((100, 100, 3), (255, 0, 0), dtype=np.uint8)  # Blue image (BGR format)
-    # img4 = np.full((100, 100, 3), (0, 255, 255), dtype=np.uint8)  # Cyan image (BGR format)
-    #
-    # result = stack_images_v4(0.5, [[img1, img2], [img3, img4, img1]])
-    # cv2.imshow('Stacked Images', result)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
     args = argparse.ArgumentParser().parse_args()
     update_config(Config, args)
     main()
