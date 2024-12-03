@@ -9,26 +9,25 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
+from processes.video_writer_process import VideoWriterProcess
 from configuration.config import Config, VisualizationStrategy
-from perception.helpers import save_frames, get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
+from perception.helpers import get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
     draw_rois_and_wait
 from perception.objects.pipe_data import PipeData
 from perception.objects.save_info import SaveInfo
 from perception.objects.timingvisualizer import TimingVisualizer
-from perception.objects.video_info import VideoRois, VideoInfo
+from perception.objects.video_info import VideoInfo, VideoRois
 from perception.visualize_data import visualize_data
 from processes.multiprocessing_manager import MultiProcessingManager
-
 from ripc import SharedMemoryCircularQueue
-
 
 def main():
     program_start_time = time.perf_counter()
+    mp.set_start_method('spawn')
 
     timer = TimingVisualizer()
     timer.start('Overall Timer')
     timer.start('Setup', parent='Overall Timer')
-    mp.set_start_method('spawn')
 
     keep_running = mp.Value('b', True)
 
@@ -41,7 +40,7 @@ def main():
     save_queue = None
     save_process = None
     if Config.save_processed_video:
-        save_queue = mp.Queue()
+        save_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.save_draw_memory_name, Config.frame_size, Config.save_queue_element_count)
 
         # Extract the name without the extension
         video_name = os.path.splitext(Config.video_name)[0]
@@ -53,38 +52,31 @@ def main():
             height=Config.height,
             fps=Config.fps
         )
-        save_process = mp.Process(target=save_frames,
-                                  args=(save_queue,
-                                        save_info))
-        save_process.start()
+
+        video_writer_process = VideoWriterProcess(save_info=save_info, shared_memory_name=Config.save_draw_memory_name,
+                                                  keep_running=keep_running, program_start_time=program_start_time)
+        video_writer_process.start()
 
     video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.width, Config.height, Config.roi_config_path)
     video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
                            width=Config.width, video_rois=video_rois)
-
     pipeline_names = extract_pipeline_names()
 
-    replay_speed = 1
     pipe_data_bytes = None
     pipe_data = None
-    frames_to_skip = 0
     iteration_counter = 0
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
     timer.stop('Setup')
 
     while True:
-        for i in range(frames_to_skip + 1): # this doesn't check if there are enough frames to skip
-            if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
-                list_pipe_data_bytes = visualization_queue.read_all()
-                if list_pipe_data_bytes == []:
-                    pipe_data_bytes = None
-                else:
-                    pipe_data_bytes = list_pipe_data_bytes[-1]
-            elif Config.visualizer_strategy == VisualizationStrategy.ALL_FRAMES:
-                pipe_data_bytes = visualization_queue.try_read()
-            # print(len(visualization_queue), pipe_data_bytes is not None)
-            # pipe_data_bytes = pipe_data_bytes[-1] if pipe_data_bytes else None
-            pass
+        if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
+            list_pipe_data_bytes = visualization_queue.read_all()
+            if list_pipe_data_bytes == []:
+                pipe_data_bytes = None
+            else:
+                pipe_data_bytes = list_pipe_data_bytes[-1]
+        elif Config.visualizer_strategy == VisualizationStrategy.ALL_FRAMES:
+            pipe_data_bytes = visualization_queue.try_read()
 
         if pipe_data_bytes is not None:
             iteration_counter += 1
@@ -116,21 +108,15 @@ def main():
                         squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
                 final_img = stack_images_v3(1, squashed_frames)
             else:
-                final_img = frame
-
-            cv2.imshow('CarVision', final_img)
+                final_img = pipe_data.frame
 
             if Config.save_processed_video and save_queue is not None:
-                print("Processed Save Queue size : ", save_queue.qsize())
-                save_queue.put(pipe_data.frame)
+                print("Processed Save Queue size : ", len(save_queue))
+                save_queue.try_write(frame.tobytes())
+            cv2.imshow('CarVision', final_img)
 
-        if replay_speed < 1:
-            wait_for_ms = 1 + int(2 ** abs(replay_speed - 1) / 10 * 1000)  # magic formula for delay
-            frames_to_skip = 0
-            key = cv2.waitKey(wait_for_ms)
-        else:
-            frames_to_skip = replay_speed - 1
-            key = cv2.waitKey(5)
+
+        key = cv2.waitKey(5)
 
         if key & 0xFF == ord('q'):
             break
@@ -149,16 +135,7 @@ def main():
             screenshot_name = f'{Config.video_name}_{timestamp}.jpg'
             screenshot_path = os.path.join(save_dir_path, screenshot_name)
             cv2.imwrite(screenshot_path, pipe_data.frame)
-        elif key & 0xFF == ord('+'):
-            replay_speed += 1
-            if replay_speed == 0:
-                replay_speed = 1
-            print(f"Replay speed: {replay_speed}")
-        elif key & 0xFF == ord('-'):
-            replay_speed -= 1
-            if replay_speed == 0:
-                replay_speed = -1
-            print(f"Replay speed: {replay_speed}")
+
         timer.stop('Display Frame')
 
     timer.start('Cleanup', parent='Overall Timer')

@@ -26,7 +26,7 @@ class MockCameraProcess(ControlledProcess):
 
 
     def run(self):
-        camera_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.image_size)
+        camera_shared_memory = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.frame_size)
         self.finish_setup()
 
         time_between_frames = 1 / Config.fps
@@ -49,11 +49,6 @@ class MockCameraProcess(ControlledProcess):
 
         while self.keep_running.value and capture.isOpened():
             start_time = time.perf_counter()
-
-            # print(f"Shared list (version={video_shared_memory.last_written_version()}) : ", end=" ")
-            # for last_processed_frame_version in self.last_processed_frame_versions:
-            #     print(last_processed_frame_version.value, end=" ")
-            # print()
 
             if self.strategy == Strategy.ALL_FRAMES_ALL_PROCESSES:
                 if not all(shared_memory.value == camera_shared_memory.last_written_version() for shared_memory in

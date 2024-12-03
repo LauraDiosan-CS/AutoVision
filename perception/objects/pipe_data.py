@@ -71,27 +71,4 @@ class PipeData:
         if new_pipe_data.horizontal_lines is not None:
             self.horizontal_lines = new_pipe_data.horizontal_lines
 
-
-        # attributes = [
-        #     'frame',
-        #     'depth_frame',
-        #     'unfiltered_frame',
-        #     'road_markings',
-        #     'heading_error',
-        #     'last_touched_process',
-        #     'lateral_offset',
-        #     'command',
-        #     'traffic_signs',
-        #     'traffic_lights',
-        #     'pedestrians',
-        #     'horizontal_lines'
-        # ]
-        #
-        # for attr in attributes:
-        #     new_value = getattr(new_pipe_data, attr)
-        #     print(f"Attribute: {attr}, new_value: {new_value}")
-        #     # Verify if the new pipe data has a valid value for the attribute
-        #     if new_value or new_value == 0:  # Check for non-None or valid 0
-        #         setattr(self, attr, new_value)
-
         return self

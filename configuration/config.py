@@ -12,21 +12,23 @@ class Config:
     pipeline_config_path = 'configuration/perception_config/parallel_pipeline_config.json'
     roi_config_path = 'configuration/perception_config/roi.json'
     video_name = "Raw_Car_Pov_Final.mp4"
-    save_video = False
-    save_processed_video = False
+    save_processed_video = True
     http_connection_failed_limit = 0
     http_timeout = 5
-    fps = 60
+    command_url = None  # 'http://10.0.0.2:8080/control'
+    fps = 5
     width = 1280
     height = 720
-    image_size = width * height * 3
-    pipe_memory_size = image_size * 10
+    frame_size = width * height * 3
+    pipe_memory_size = frame_size * 10
     visualizer_strategy = VisualizationStrategy.NEWEST_FRAME
     visualizer_queue_element_count = fps * 4 * 2
-    command_url = None  # 'http://10.0.0.2:8080/control'
     video_feed_memory_name = "video_feed"
     control_loop_memory_name = "control_loop"
     visualization_memory_name = "visualizer"
+    save_raw_memory_name = "save_raw"
+    save_draw_memory_name = "save_draw"
+    save_queue_element_count = fps
 
     def __init__(self):
         raise Exception("This class is not meant to be instantiated")

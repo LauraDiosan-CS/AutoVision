@@ -1,15 +1,13 @@
 import json
 import os
-import queue
+
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
-import torch.multiprocessing as mp
 
 from configuration.config import Config
 from perception.filters.base_filter import BaseFilter
 from perception.objects.pipeline_config_types import PipelineConfig, JSONPipelinesTYPE, FILTER_CLASS_LOOKUP
-from perception.objects.save_info import SaveInfo
 from perception.objects.video_info import VideoInfo, VideoRois
 
 
@@ -123,47 +121,6 @@ def draw_rois_and_wait(frame, video_rois):
     plt.imshow(imgArr)
     plt.show()
 
-
-def save_frames(save_queue: mp.Queue, save_info: SaveInfo):
-    print(f"\nSaving video to: {save_info.video_path}\n")
-
-    fourcc = cv2.VideoWriter_fourcc(*"XVID")
-    output_video_writer = cv2.VideoWriter(
-        save_info.video_path,
-        fourcc, save_info.fps,
-        (save_info.width, save_info.height)
-    )
-
-    while True:
-        try:
-            frame = save_queue.get()
-            print("!!! Got a frame !!!", type(frame))
-            if isinstance(frame, str) and "STOP" in frame:
-                print("Saving process received STOP")
-                break
-            if isinstance(frame, np.ndarray) and frame.flags.writeable:
-                output_video_writer.write(frame)
-            else:
-                print(f"Invalid frame type for saving: {type(frame)}")
-        except queue.Empty:
-            pass
-
-    if save_queue.empty():
-        print(f"All frames saved")
-    else:
-        print(f"Saving remaining frames")
-    while not save_queue.empty():
-        print(f"frames left to save: {save_queue.qsize()}")
-        frame = save_queue.get()
-        if isinstance(frame, str) and "STOP" in frame:
-            continue
-        elif isinstance(frame, np.ndarray) and frame.flags.writeable:
-            output_video_writer.write(frame)
-        else:
-            print(f"Invalid frame type for saving: {type(frame)}")
-
-    output_video_writer.release()
-
 def stack_images_v2(scale, imgArray):
     num_images = len(imgArray)
 
@@ -242,6 +199,52 @@ def stack_images_v2(scale: float, imgArray: list[np.ndarray]) -> np.ndarray:
     return canvas
 
 def stack_images_v3(scale: float, imgArrayList: list[list[np.ndarray]]) -> np.ndarray:
+    """
+    Stacks and arranges multiple images into a single image canvas.
+
+    This function takes a list of lists of images, resizes them according to the given scale factor,
+    and arranges them into a grid layout on a single canvas image. Each sublist in the input represents
+    a group (pipeline) of images that will be grouped together on the canvas. The function also labels
+    each image with its indices and draws borders around each group of images.
+
+    Parameters
+    ----------
+    scale : float
+        Scaling factor to resize the images. Must be a positive value (> 0).
+    imgArrayList : list of list of numpy.ndarray
+        A list containing sublists of images. Each sublist represents a group of images (pipeline),
+        and each image is a numpy ndarray.
+
+    Returns
+    -------
+    numpy.ndarray
+        A single image canvas with all the images arranged in a grid, grouped, and labeled.
+
+    Raises
+    ------
+    ValueError
+        If `scale` is not a positive value.
+        If `imgArrayList` is empty or any sublist in `imgArrayList` is empty.
+
+    Notes
+    -----
+    - Images are resized according to the `scale` parameter.
+    - Grayscale images are converted to BGR color images.
+    - Images are arranged in a grid layout, with a maximum of 3 columns for better visualization.
+    - Each group of images (pipeline) is enclosed within a border on the canvas.
+    - Each image is labeled with its indices (i, j) on the top-left corner.
+
+    Examples
+    --------
+    >>> import cv2
+    >>> img1 = cv2.imread('image1.jpg')
+    >>> img2 = cv2.imread('image2.jpg')
+    >>> img3 = cv2.imread('image3.jpg')
+    >>> imgArrayList = [[img1, img2], [img3]]
+    >>> canvas = stack_images_v3(0.5, imgArrayList)
+    >>> cv2.imshow('Canvas', canvas)
+    >>> cv2.waitKey(0)
+    """
     if scale <= 0:
         raise ValueError("Scale must be a positive value.")
 
@@ -283,7 +286,7 @@ def stack_images_v3(scale: float, imgArrayList: list[list[np.ndarray]]) -> np.nd
             x_end = x_start + img.shape[1]
 
             # Place the image on the canvas
-            canvas[y_start:y_end, x_start:x_start + img.shape[1]] = img
+            canvas[y_start:y_end, x_start:x_end] = img
 
             # Draw index on the top-left corner of each image
             index_text = f"{i},{j}"
@@ -303,7 +306,7 @@ def stack_images_v3(scale: float, imgArrayList: list[list[np.ndarray]]) -> np.nd
         y_end = y_start + max_height
         x_start = current_col * max_width
         x_end = x_start + len(resized_images) * max_width
-        cv2.rectangle(canvas, (x_start, y_start), (x_end, y_start + max_height), (255, 255, 255), 3)
+        cv2.rectangle(canvas, (x_start, y_start), (x_end, y_end), (255, 255, 255), 3)
 
         current_col += len(resized_images)
         if current_col >= num_cols:
