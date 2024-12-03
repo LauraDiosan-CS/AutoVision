@@ -75,7 +75,7 @@ def display_behaviour(frame, behaviour: str):
     put_text(frame, f'Behaviour: {behaviour}', position=(0, 20), color=(0, 0, 255))
 
 
-def visualize_data(video_info: VideoInfo, data: PipeData) -> PipeData:
+def visualize_data(video_info: VideoInfo, data: PipeData) -> np.ndarray:
     car_position = (int(video_info.width / 2), video_info.height)
 
     if data.unfiltered_frame is None:

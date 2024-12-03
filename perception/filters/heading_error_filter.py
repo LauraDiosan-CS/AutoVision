@@ -9,24 +9,16 @@ import numpy as np
 class HeadingErrorFilter(BaseFilter):
     def __init__(self, video_info: VideoInfo, visualize: bool):
         super().__init__(video_info=video_info, visualize=visualize)
-        self.car_position = (int(self.width / 2), self.height)
+        self.car_position = (int(self.video_width / 2), self.video_height)
 
     def process(self, data: PipeData) -> PipeData:
         if data.road_markings is None:
             return data
+
         center_line: LineSegment = data.road_markings.center_line
         right_line: LineSegment = data.road_markings.right_line
 
         if center_line and right_line:
-
-            # distance_to_right_lane = right_line.lower_x - self.width // 2
-            # distance_to_left_lane = self.width // 2 - center_line.lower_x
-            #
-            # total_distance = distance_to_right_lane + distance_to_left_lane
-            #
-            # data.lateral_offset = -(2 * distance_to_right_lane / total_distance) + 1
-            #
-
             upper_lane_center = ((center_line.upper_x + right_line.upper_x) // 2,
                                  (center_line.upper_y + right_line.upper_y) // 2)
 
@@ -41,9 +33,10 @@ class HeadingErrorFilter(BaseFilter):
             heading_error = np.degrees(np.arccos(dot_product))
 
             '''if direction is negative, it means the car moves to the right of the lane center
-            and needs to  move to the left to correct its position, hence the steering angle needs to be negative'''
+            and needs to move to the left to correct its position, hence the steering angle needs to be negative'''
             if direction_vector[0] < 0:
                 heading_error = -heading_error
+
             data.heading_error = -heading_error
 
         return super().process(data)

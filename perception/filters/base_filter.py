@@ -18,11 +18,11 @@ class BaseFilter(ABC):
         return self.video_info.video_rois
 
     @property
-    def width(self):
+    def video_width(self):
         return self.video_info.width
 
     @property
-    def height(self):
+    def video_height(self):
         return self.video_info.height
 
     @abstractmethod

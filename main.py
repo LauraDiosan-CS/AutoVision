@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from processes.video_writer_process import VideoWriterProcess
 from configuration.config import Config, VisualizationStrategy
 from perception.helpers import get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
-    draw_rois_and_wait
+    draw_rois_and_wait, stack_images_v2
 from perception.objects.pipe_data import PipeData
 from perception.objects.save_info import SaveInfo
 from perception.objects.timingvisualizer import TimingVisualizer
@@ -70,10 +70,10 @@ def main():
 
     while True:
         if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
-            list_pipe_data_bytes = visualization_queue.read_all()
-            if list_pipe_data_bytes == []:
+            if len(visualization_queue) == 0:
                 pipe_data_bytes = None
             else:
+                list_pipe_data_bytes = visualization_queue.read_all()
                 pipe_data_bytes = list_pipe_data_bytes[-1]
         elif Config.visualizer_strategy == VisualizationStrategy.ALL_FRAMES:
             pipe_data_bytes = visualization_queue.try_read()
@@ -115,9 +115,7 @@ def main():
                 save_queue.try_write(frame.tobytes())
             cv2.imshow('CarVision', final_img)
 
-
         key = cv2.waitKey(5)
-
         if key & 0xFF == ord('q'):
             break
         elif key & 0xFF == ord('x'):

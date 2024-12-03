@@ -59,7 +59,6 @@ class LineSegment:
         - The x-coordinate of the intersection point.
         """
         if self.slope == np.inf or self.slope == -np.inf:  # Vertical line
-            print("Vertical line")
             return self.lower_x  # Intersection of vertical line with any horizontal line is its x-coordinate
         elif self.slope == 0:  # Horizontal line
             raise ValueError(f"The line segment {self.__repr__()} is horizontal, so it doesn't intersect with the "
