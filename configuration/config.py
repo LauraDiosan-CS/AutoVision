@@ -16,7 +16,7 @@ class Config:
     http_connection_failed_limit = 0
     http_timeout = 5
     command_url = None  # 'http://10.0.0.2:8080/control'
-    fps = 10
+    fps = 30
     width = 1280
     height = 720
     frame_size = width * height * 3

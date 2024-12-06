@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from processes.video_writer_process import VideoWriterProcess
 from configuration.config import Config, VisualizationStrategy
 from perception.helpers import get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
-    draw_rois_and_wait, stack_images_v2
+    draw_rois_and_wait
 from perception.objects.pipe_data import PipeData
 from perception.objects.save_info import SaveInfo
 from perception.objects.timingvisualizer import TimingVisualizer
@@ -38,7 +38,7 @@ def main():
     visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.open(Config.visualization_memory_name)
 
     save_queue = None
-    save_process = None
+    video_writer_process = None
     if Config.save_processed_video:
         save_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.save_draw_memory_name, Config.frame_size, Config.save_queue_element_count)
 
@@ -82,22 +82,16 @@ def main():
             iteration_counter += 1
             timer.start('Display Frame', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-            pipe_data.timing_info.stop("Transfer Data (MM -> Viz)")
+            pipe_data.timing_info.stop(f"Transfer Data (MM -> Viz) {pipe_data.last_touched_process}")
             pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
-            # print(f"PipeData received from {pipe_data.last_touched_process} at {(time.perf_counter() - program_start_time):.2f} s")
-            # print()
-            # print(f"Timing_Info Viz pre: {pipe_data.timing_info}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
-            # print(f"Timer hierarchy after append: {timer.hierarchy}")
-            # print(f"Timing_Info Viz post: {timer.timing_info}")
-            # print()
 
             # if iteration_counter % Config.fps == 0:
             #     print("Plotting pie charts")
             #     timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
 
-            if pipe_data.processed_frames is not None:
-                frame = visualize_data(video_info=video_info, data=pipe_data)
+            frame = visualize_data(video_info=video_info, data=pipe_data)
+            if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
                 squashed_frames = [[frame]]
 
                 for pipeline_name in pipeline_names:
@@ -108,10 +102,9 @@ def main():
                         squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
                 final_img = stack_images_v3(1, squashed_frames)
             else:
-                final_img = pipe_data.frame
+                final_img = frame
 
             if Config.save_processed_video and save_queue is not None:
-                print("Processed Save Queue size : ", len(save_queue))
                 save_queue.try_write(frame.tobytes())
             cv2.imshow('CarVision', final_img)
 
@@ -136,23 +129,20 @@ def main():
 
         timer.stop('Display Frame')
 
-    timer.start('Cleanup', parent='Overall Timer')
     cv2.destroyAllWindows()
 
     keep_running.value = False
     print("Initiating Termination of MultiProcessingManager")
 
-    if save_queue is not None and save_process is not None:
+    if save_queue is not None and video_writer_process is not None:
         print("Joining processed frame saving process")
-        save_queue.put("STOP")
-        save_process.join()
+        video_writer_process.join()
     print("Processed frame saving process joined")
 
     print("Joining MultiProcessingManager")
     mp_manager.terminate()
     print("MultiProcessingManager joined")
 
-    timer.stop('Cleanup')
     timer.stop('Overall Timer')
     timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
     plt.show()  # Keep the pie chart open

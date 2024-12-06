@@ -3,6 +3,9 @@ import time
 
 class TimingInfo:
     def __init__(self):
+        """
+        !!! DO NOT REPEAT LABEL NAMES ACROSS DIFFERENT BRANCHES/HIERARCHIES !!!
+        """
         self.start_times = {}
         self.paused_times = {}
         self.timings = {}
@@ -133,41 +136,9 @@ class TimingInfo:
                 self.timings[label] -= value
                 self.counts[label] -= 1
 
-    # def append_hierarchy(self, other, label: str):
-    #     # Ensure the label exists in the current hierarchy
-    #     if label not in self.hierarchy and label != self.root_label:
-    #         raise ValueError(f"Label '{label}' does not exist in the current hierarchy.")
-    #
-    #     # Ensure the other TimingInfo has a root
-    #     if other.root_label is None:
-    #         raise ValueError("The other TimingInfo has no root label.")
-    #
-    #     # Append the other root label under the current label
-    #     if label not in self.hierarchy:
-    #         self.hierarchy[label] = []
-    #     self.hierarchy[label].append(other.root_label)
-    #
-    #     # Recursively copy the hierarchy of the other TimingInfo to self
-    #     def copy_hierarchy(src_hierarchy, dst_hierarchy, src_label):
-    #         if src_label in src_hierarchy:
-    #             dst_hierarchy[src_label] = []
-    #             for child in src_hierarchy[src_label]:
-    #                 dst_hierarchy[src_label].append(child)
-    #                 copy_hierarchy(src_hierarchy, dst_hierarchy, child)
-    #
-    #     # Merge the hierarchy
-    #     copy_hierarchy(other.hierarchy, self.hierarchy, other.root_label)
-    #
-    #     # Merge timings and counts (since labels are unique, we can just update)
-    #     self.timings.update(other.timings)
-    #     self.counts.update(other.counts)
-    #
-    #     # Merge start_times and paused_times
-    #     self.start_times.update(other.start_times)
-    #     self.paused_times.update(other.paused_times)
-    #
+
     def append_hierarchy(self, other, label: str = None):
-        # print(f"Appending hierarchy of {other.root_label} to {label}")
+        # print(f"Appending hierarchy of {other.root_label} to {label if label else self.root_label}")
         # print(f"Current hierarchy: {self.hierarchy}")
         # print(f"Other hierarchy: {other.hierarchy}")
 
@@ -211,6 +182,7 @@ class TimingInfo:
                 self.timings[key] = value
                 self.counts[key] = other.counts[key]
 
+
         # Merge start_times and paused_times, respecting existing timers
         self.start_times.update(other.start_times)
         self.paused_times.update(other.paused_times)
@@ -231,22 +203,36 @@ if __name__ == '__main__':
     timing2.start('X')  # Root of the second hierarchy
     timing2.start('Y', 'X')
     timing2.start('Z', 'Y')
+    time.sleep(0.1)
     timing2.stop('Z')
+    time.sleep(0.2)
     timing2.stop('Y')
+    time.sleep(0.3)
     timing2.stop('X')
+
+    # Create the third TimingInfo object
+    timing3 = TimingInfo()
+    timing3.start('M')  # Root of the third hierarchy
+    timing3.start('M.Y', 'M')
+    timing3.start('M.Z', 'M.Y')
+    time.sleep(0.4)
+    timing3.stop('M.Z')
+    time.sleep(0.7)
+    timing3.stop('M.Y')
+    time.sleep(0.1)
+    timing3.stop('M')
 
     # Append timing2's hierarchy to timing1 under 'B' for the first time
     timing1.append_hierarchy(timing2, 'B')
 
-    print("Timing1 Hierarchy after appending Timing2 three times:")
+    print("Timing1 Hierarchy after appending Timing2")
     print(timing1)
     # Repeat appending timing2's hierarchy to timing1 under 'B' again
     timing1.append_hierarchy(timing2, 'B')
-    print("Timing1 Hierarchy after appending Timing2 three times:")
+    print("Timing1 Hierarchy after appending Timing2 again:")
     print(timing1)
-    # Repeat appending timing2's hierarchy to timing1 under 'B' a third time
-    timing1.append_hierarchy(timing2, 'B')
 
-    # Display the results
-    print("Timing1 Hierarchy after appending Timing2 three times:")
+    # Append timing3's hierarchy to timing1 under 'B' for the first time
+    timing1.append_hierarchy(timing3, 'B')
+    print("Timing1 Hierarchy after appending Timing3")
     print(timing1)

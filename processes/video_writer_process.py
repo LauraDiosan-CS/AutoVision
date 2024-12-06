@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import cv2
 import numpy as np
 from ripc import SharedMemoryCircularQueue
@@ -29,7 +27,6 @@ class VideoWriterProcess(ControlledProcess):
                                        (self.save_info.width, self.save_info.height))
 
         frame_as_bytes = None
-        cv2.namedWindow("Saved Video", cv2.WINDOW_NORMAL)
         while self.keep_running.value:
             if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
                 if len(save_queue) == 0:
@@ -44,8 +41,6 @@ class VideoWriterProcess(ControlledProcess):
                 continue
 
             frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
-            cv2.imshow("Saved Video", frame)
-            cv2.waitKey(1)
 
             video_writer.write(frame)
 

@@ -76,18 +76,21 @@ class TimingVisualizer:
                 "lightgray": {
                     "blue": ["silver", "lightsteelblue", "aliceblue"],
                     "green": ["gainsboro", "palegreen", "honeydew"],
-                    "yellow": ["whitesmoke", "beige", "lightyellow"]
+                    "yellow": ["whitesmoke", "beige", "lightyellow"],
+                    "purple": ["thistle", "lavender", "plum"],
                 },
                 "brown": {
                     "red": ["saddlebrown", "sienna", "chocolate"],
                     "orange": ["peru", "tan", "burlywood"],
-                    "pink": ["rosybrown", "lightcoral", "indianred"]
+                    "pink": ["rosybrown", "lightcoral", "indianred"],
+                    "yellow": ["gold", "orange", "darkorange"],
+                    "green": ["olive", "darkolivegreen", "olivedrab"],
                 },
                 "white": {
-                    "red": ["crimson","orangered","magenta", "darkred"],
-                    "green": ["forestgreen", "darkgreen", "seagreen"],
-                    "blue": ["skyblue", "navy", "aqua", "teal"],
-                    "purple": ["violet", "indigo", "lavender", "plum"],
+                    "red": ["crimson","orangered","magenta", "darkred", "firebrick", "maroon", "brown", "indianred"],
+                    "green": ["forestgreen", "darkgreen", "seagreen", "limegreen", "greenyellow", "chartreuse", "lime"],
+                    "blue": ["skyblue", "navy", "aqua", "teal", "cyan", "turquoise", "darkturquoise", "lightblue"],
+                    "purple": ["violet", "indigo", "lavender", "plum", "purple", "darkviolet", "blueviolet"],
                     "yellow": ["gold", "orange"]
                 },
             }
@@ -127,6 +130,7 @@ class TimingVisualizer:
         return {label: self.timings[label] / self.counts[label] for label in self.timings}
 
     def plot_pie_charts(self, save_path=None):
+        start_time = time.time()
         self.timing_info.pause_all()
 
         # Count the total number of charts to be plotted
@@ -173,7 +177,7 @@ class TimingVisualizer:
 
             children = self.hierarchy.get(parent, [])
             labels = [child for child in children if child in self.timings]
-            times = [self.timings[child] for child in labels]
+            execution_times = [self.timings[child] for child in labels]
             averages = self.calculate_averages()
             formatted_labels = [get_formatted_label(label, self.timings[label], averages[label]) for label in
                                 labels]
@@ -189,23 +193,23 @@ class TimingVisualizer:
                     for vairation, label in zip(child_colors, labels):
                         color_lookup[label] = vairation
 
-            children_total_time = sum(times)
+            children_total_time = sum(execution_times)
             parent_time = self.timings[parent]
 
             # If there's a difference, add "other" to the pie chart
             if parent_time > children_total_time:
                 labels.append("Other")
-                times.append(parent_time - children_total_time)
+                execution_times.append(parent_time - children_total_time)
                 formatted_labels.append(get_formatted_label("Other", parent_time - children_total_time,
                                                             (parent_time - children_total_time) / self.counts[
                                                                 parent]))
                 child_colors.append(parent_color)  # Use parent color for "Other"
 
-            filtered_labels = [label if time / parent_time >= 0.03 else '' for label, time in
-                               zip(formatted_labels, times)]
-            times = [time + 0.0 for time in times]
-            self.axs[idx].pie(times, labels=filtered_labels, autopct='%1.1f%%',
-                              startangle=0, shadow=True, colors=child_colors, explode=[0.05] * len(times))
+            filtered_labels = [label if execution_time / parent_time >= 0.03 else '' for label, execution_time in
+                               zip(formatted_labels, execution_times)]
+            execution_times = [execution_time + 0.0 for execution_time in execution_times]
+            self.axs[idx].pie(execution_times, labels=filtered_labels, autopct='%1.1f%%',
+                              startangle=0, shadow=True, colors=child_colors, explode=[0.05] * len(execution_times))
             title = get_formatted_title(parent, parent_time, averages[parent])
             self.axs[idx].set_title(title)
             self.axs[idx].axis('equal')
@@ -231,6 +235,7 @@ class TimingVisualizer:
             self.save_timings(save_path + ".csv")
 
         self.timing_info.restart_all()
+        print(f"Plotting took {time.time() - start_time:.2f} s")
 
     def save_timings(self, save_path):
         avgs = self.calculate_averages()

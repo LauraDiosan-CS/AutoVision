@@ -86,20 +86,17 @@ class MultiProcessingManager(ControlledProcess):
                 if pipe_data_bytes:
 
                     new_pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-                    new_pipe_data.timing_info.stop("Transfer Data (SPF -> MM)")
+                    new_pipe_data.timing_info.stop(f"Transfer Data (SPF -> MM) {new_pipe_data.last_touched_process}")
                     # print(f"New Pipe Data: {new_pipe_data.last_touched_process} {(time.perf_counter() - self.program_start_time):.2f} s")
 
-                    new_pipe_data.timing_info.start("Merge Data",
+                    new_pipe_data.timing_info.start(f"Merge Data {new_pipe_data.last_touched_process}",
                                                     parent=f"Data Lifecycle {new_pipe_data.last_touched_process}")
-
                     current_pipe_data.merge(new_pipe_data)
-
-                    new_pipe_data.timing_info.stop("Merge Data")
-                    current_pipe_data.timing_info.start("Transfer Data (MM -> Viz+)",
+                    current_pipe_data.timing_info.stop(f"Merge Data {new_pipe_data.last_touched_process}")
+                    current_pipe_data.timing_info.start(f"Transfer Data (MM -> Viz+) {new_pipe_data.last_touched_process}",
                                                         parent=f"Data Lifecycle {current_pipe_data.last_touched_process}")
                     # print(f"Timing_Info MM -> Viz: {current_pipe_data.timing_info}")
                     pickled_pipe_data = pickle.dumps(current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
-
                     control_loop_pipe_writer.write(pickled_pipe_data)
 
                     visualization_queue.try_write(pickled_pipe_data)

@@ -44,14 +44,14 @@ class SequentialFilterProcess(ControlledProcess):
                             creation_time=time.perf_counter(),
                             last_touched_process=self.name)
             data.timing_info.start(f"Data Lifecycle {data.last_touched_process}")
-            data.timing_info.start("Process Data", parent=f"Data Lifecycle {data.last_touched_process}")
+            data.timing_info.start(f"Process Data {data.last_touched_process}", parent=f"Data Lifecycle {data.last_touched_process}")
             time.sleep(self.artificial_delay)
 
             for filter in self.filters:
                 filter.process(data)
 
             data.timing_info.stop("Process Data")
-            data.timing_info.start("Transfer Data (SPF -> MM)", parent=f"Data Lifecycle {data.last_touched_process}")
+            data.timing_info.start(f"Transfer Data (SPF -> MM) {data.last_touched_process}", parent=f"Data Lifecycle {data.last_touched_process}")
             # print(f"Timing_Info SPF({self.name})->MM: {data.timing_info}")
             data_as_bytes = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
             memory_writer.write(data_as_bytes)
