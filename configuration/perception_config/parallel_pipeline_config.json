@@ -4,7 +4,7 @@
         "filters": {
             "roi": {
                 "roi_type": "signs",
-                "visualize": true
+                "visualize": false
             },
             "signs_detect": {
                 "model": "best_signs_close.pt",
@@ -17,7 +17,7 @@
         "filters": {
             "roi": {
                 "roi_type": "traffic_lights",
-                "visualize": true
+                "visualize": false
             },
             "traffic_light_detect": {
                 "model": "best_lights.pt",
@@ -30,7 +30,7 @@
         "filters": {
             "roi": {
                 "roi_type": "pedestrians",
-                "visualize": true
+                "visualize": false
             },
             "pedestrian_detect": {
                 "model": "best_pedestrian.pt",
@@ -64,7 +64,8 @@
                 "visualize": false
             },
             "lane_detect": {
-                "visualize": false
+                "white_line_threshold": 135,
+                "visualize": true
             },
             "heading_error": {
                 "visualize": false

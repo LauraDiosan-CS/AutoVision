@@ -17,8 +17,8 @@ class Config:
     http_timeout = 5
     command_url = None  # 'http://10.0.0.2:8080/control'
     fps = 30
-    width = 1280
-    height = 720
+    width = 640 * 2
+    height = 360 * 2
     frame_size = width * height * 3
     pipe_memory_size = frame_size * 10
     visualizer_strategy = VisualizationStrategy.NEWEST_FRAME

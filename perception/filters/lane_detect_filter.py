@@ -22,12 +22,41 @@ def filter_lines_by_type(hough_line_segments: list[LineSegment], frame_width: in
 
     return left_lane_lines, right_lane_lines, horizontal_lines
 
+def filter_for_white_lines(
+        frame: np.ndarray,
+        line_segments: list[LineSegment],
+        threshold: int = 20,
+        num_points: int = 50
+) -> tuple[list[LineSegment], list[LineSegment]]:
+    """
+    Filters line segments based on whether they lie on white regions in a frame.
+    Supports both color and grayscale frames.
 
-def filter_for_white_lines(color_frame, line_segments, threshold=135, num_points=50) -> tuple[
-    list[LineSegment], list[LineSegment]]:
+    Args:
+        frame (np.ndarray): The input image/frame, either color (BGR) or grayscale.
+        line_segments (List[LineSegment]): A list of line segments to filter.
+        threshold (int, optional): The intensity threshold to consider a pixel as white.
+                                   For color frames, all channels must be above this value.
+                                   For grayscale frames, the single channel must be above this value.
+        num_points (int, optional): Number of points to sample along each line segment.
+                                    Defaults to 50.
+
+    Returns:
+        Tuple[List['LineSegment'], List['LineSegment']]: A tuple containing two lists:
+            - white_lines: Line segments predominantly on white regions.
+            - other_lines: Line segments not predominantly on white regions.
+    """
 
     if num_points < 1:
         raise ValueError("The number of points must be greater than 0")
+
+    # Determine if the frame is color or grayscale
+    if len(frame.shape) == 2:
+        frame_type = 'grayscale'
+    elif len(frame.shape) == 3 and frame.shape[2] == 3:
+        frame_type = 'color'
+    else:
+        raise ValueError("Unsupported frame format: expected grayscale or BGR color image.")
 
     white_lines = []
     other_lines = []
@@ -41,13 +70,19 @@ def filter_for_white_lines(color_frame, line_segments, threshold=135, num_points
         # Check each point along the line
         for x, y in discretized_points:
             # Ensure x and y are integers for indexing
-            x, y = int(x), int(y)
-            # Check if the point is within the frame
-            if 0 <= x < color_frame.shape[1] and 0 <= y < color_frame.shape[0]:
-                if all(i >= threshold for i in color_frame[y, x]):  # Check if the point is white
-                    white_points += 1
+            x, y = int(round(x)), int(round(y))
+            # Check if the point is within the frame boundaries
+            if 0 <= x < frame.shape[1] and 0 <= y < frame.shape[0]:
+                if frame_type == 'color':
+                    # Check if all channel values are above the threshold
+                    if np.all(frame[y, x] >= threshold):
+                        white_points += 1
+                else:  # grayscale
+                    # Check if the pixel intensity is above the threshold
+                    if frame[y, x] >= threshold:
+                        white_points += 1
 
-        # If most of the sampled points are white, consider the line as on a white part
+        # If more than half of the sampled points are white, classify as white line
         if white_points / num_points > 0.5:
             white_lines.append(line_segment)
         else:
@@ -103,9 +138,10 @@ def visualize_hough_lines(data: PipeData, lane_white_horizontal_lines, left_line
 
 
 class LaneDetectFilter(BaseFilter):
-    def __init__(self, video_info: VideoInfo, visualize: bool):
+    def __init__(self, video_info: VideoInfo, visualize: bool, white_line_threshold):
         super().__init__(video_info=video_info, visualize=visualize)
 
+        self.white_line_threshold = white_line_threshold
         self.max_lane_height = self.video_height // 2
         # Pixels per cm =   Width / Width in cm (or Height / Height in cm)
         self.lane_width_in_cm = 35
@@ -113,7 +149,7 @@ class LaneDetectFilter(BaseFilter):
         self.lane_width_in_pixels = int((self.video_width / self.camera_visible_width_in_cm) * self.lane_width_in_cm)
 
     def process(self, data: PipeData) -> PipeData:
-        hough_lines = self.apply_houghLines(data.frame)
+        hough_lines = self.compute_hough_lines(data.frame)
 
         if hough_lines is None:
             return super().process(data)
@@ -126,7 +162,7 @@ class LaneDetectFilter(BaseFilter):
             else:
                 hough_line_segments.append(LineSegment(x1, y1, x2, y2))
 
-        white_line_segments, other_line_segments = filter_for_white_lines(data.unfiltered_frame, hough_line_segments)
+        white_line_segments, other_line_segments = filter_for_white_lines(data.raw_frame, hough_line_segments, threshold=self.white_line_threshold)
 
         white_left_lines, white_right_lines, white_horizontal_lines = filter_lines_by_type(
             white_line_segments,
@@ -236,7 +272,7 @@ class LaneDetectFilter(BaseFilter):
         return LineSegment(left_lower_x, left_lower_y, left_upper_x, left_upper_y)
 
     @staticmethod
-    def apply_houghLines(frame, rho=1, theta=np.pi / 180, threshold=50, min_line_length=300, max_line_gap=200):
+    def compute_hough_lines(frame, rho=1, theta=np.pi / 180, threshold=50, min_line_length=300, max_line_gap=200):
         return cv2.HoughLinesP(frame, rho, theta, threshold, np.array([]), minLineLength=min_line_length,
                                maxLineGap=max_line_gap)
 

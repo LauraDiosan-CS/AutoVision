@@ -1,6 +1,19 @@
-from collections import namedtuple
+from dataclasses import dataclass
+from typing import Optional
+from perception.objects.line_segment import LineSegment
 
-RoadMarkings = namedtuple("RoadMarkings", ["left_line", "center_line", "center_line_virtual",
-                                           "right_line", "right_line_virtual", "stop_lines"])
+@dataclass(slots=True)
+class RoadObject:
+    bbox: list[float]
+    label: str
+    conf: float
+    distance: float
 
-RoadObject = namedtuple("RoadObject", ["bbox", "label", "conf", "distance"])
+@dataclass(slots=True)
+class RoadMarkings:
+    left_line: Optional[LineSegment]
+    center_line: Optional[LineSegment]
+    center_line_virtual: bool
+    right_line: Optional[LineSegment]
+    right_line_virtual: bool
+    stop_lines: list[LineSegment]

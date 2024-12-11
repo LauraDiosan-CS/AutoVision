@@ -29,9 +29,9 @@ class ObjectDetectionFilter(BaseFilter):
             prediction_id = int(yolo_object.boxes.cls.item())
             prediction_label = labels[prediction_id]
 
-            confidence = f'{yolo_object.boxes.conf.item(): .2f}'
+            confidence = round(float(yolo_object.boxes.conf.item()), 2)
 
-            if float(confidence) < confidence_threshold:
+            if confidence < confidence_threshold:
                 continue
             bbox_tensor_cpu = yolo_object.boxes.xyxy.cpu()
             bbox_list = [float(f'{el: .4f}') for el in bbox_tensor_cpu.tolist()[0]]

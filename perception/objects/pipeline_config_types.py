@@ -35,7 +35,7 @@ FILTER_CLASS_LOOKUP: dict[str, FilterClassWithExpectedParams] = {
     "grayscale": FilterClassWithExpectedParams(GrayScaleFilter, ["visualize"]),
     "canny_edge": FilterClassWithExpectedParams(CannyEdgeFilter, ["visualize", "low_threshold", "high_threshold"]),
     "roi": FilterClassWithExpectedParams(ROIFilter, ["visualize", "roi_type"]),
-    "lane_detect": FilterClassWithExpectedParams(LaneDetectFilter, ["visualize"]),
+    "lane_detect": FilterClassWithExpectedParams(LaneDetectFilter, ["visualize", "white_line_threshold"]),
     "heading_error": FilterClassWithExpectedParams(HeadingErrorFilter, ["visualize"]),
     "signs_detect": FilterClassWithExpectedParams(SignsDetect, ["visualize", "model_path"]),
     "traffic_light_detect": FilterClassWithExpectedParams(TrafficLightDetect, ["visualize", "model_path"]),

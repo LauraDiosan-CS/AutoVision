@@ -37,6 +37,6 @@ class HeadingErrorFilter(BaseFilter):
             if direction_vector[0] < 0:
                 heading_error = -heading_error
 
-            data.heading_error = -heading_error
+            data.heading_error_degrees = -heading_error
 
         return super().process(data)

@@ -20,35 +20,40 @@ class Controller(mp.Process):
 
 
     def run(self):
-        behaviour_planner = BehaviourPlanner()
-        self.http_pool = urllib3.PoolManager()
-        self.http_connection_failed_count = 0
-        self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
-        memory_reader = SharedMemoryReader(name=Config.control_loop_memory_name)
+        try:
+            behaviour_planner = BehaviourPlanner()
+            self.http_pool = urllib3.PoolManager()
+            self.http_connection_failed_count = 0
+            self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
+            memory_reader = SharedMemoryReader(name=Config.control_loop_memory_name)
 
-        while self.keep_running:
-            pipe_data_bytes = memory_reader.blocking_read()
-            if pipe_data_bytes is None:
-                print(f"Exiting {self.name}")
-                return
+            while self.keep_running:
+                pipe_data_bytes = memory_reader.blocking_read()
+                if pipe_data_bytes is None:
+                    print(f"Exiting {self.name}")
+                    return
 
-            pipe_data: PipeData = pickle.loads(pipe_data_bytes)
+                pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
-            # Perform behavior planning based on processed data
-            pipe_data.behaviour = behaviour_planner.run_iteration(
-                    traffic_signs=pipe_data.traffic_signs,
-                    traffic_lights=pipe_data.traffic_lights,
-                    pedestrians=pipe_data.pedestrians,
-                    horizontal_lines=pipe_data.horizontal_lines
-                )
+                # Perform behavior planning based on processed data
+                behaviour = behaviour_planner.run_iteration(
+                        traffic_signs=pipe_data.traffic_signs,
+                        traffic_lights=pipe_data.traffic_lights,
+                        pedestrians=pipe_data.pedestrians,
+                        horizontal_lines=pipe_data.horizontal_lines
+                    )
 
-            normalized_steering_angle = self.compute_normalized_steering_angle(pipe_data)
+                normalized_steering_angle = self.compute_normalized_steering_angle(pipe_data.heading_error_degrees, pipe_data.lateral_offset)
 
-            self.handle_http_communication(pipe_data)
+                self.handle_http_communication(behaviour, pipe_data.heading_error_degrees, pipe_data.lateral_offset)
+            print("Exiting Controller")
+        except Exception as e:
+            print(f"Error in Controller: {e}")
+            self.keep_running.value = False
 
-    def compute_normalized_steering_angle(self, data: PipeData) -> float:
-        heading_error = data.heading_error # degrees
-        lateral_offset = data.lateral_offset
+    def compute_normalized_steering_angle(self, heading_error, lateral_offset):
+        if heading_error is None or lateral_offset is None:
+            return 0.0
 
         MAX_HEADING_ANGLE = 90
         HEADING_ERROR_WEIGHT = 0.75
@@ -67,20 +72,17 @@ class Controller(mp.Process):
         # Increase/Decrease Normalized Steering Angle in proportion to the Normalized Heading Error
         normalized_steering_angle = self.steering_pid.compute(corrected_normalized_heading_error)
 
-        # print(f"For heading error: {heading_error}, lateral offset: {lateral_offset}: \ncorrected norm heading error: "
-        #       f"{corrected_normalized_heading_error}, norm steering angle: {normalized_steering_angle}")
-
         return normalized_steering_angle
 
 
-    def handle_http_communication(self, data):
+    def handle_http_communication(self, behaviour, heading_error, lateral_offset):
         if Config.command_url and self.http_connection_failed_count < Config.http_connection_failed_limit:
             print(f"Sending command to car")
             try:
-                json_data = {"behaviour": data.behaviour,
-                             "heading_error_degrees": data.heading_error,
-                             "lateral_error": data.lateral_offset,
-                             "observed_acceleration": 0}
+                json_data = {"behaviour": behaviour,
+                             "heading_error_degrees": heading_error,
+                             "lateral_error": lateral_offset,
+                             }
                 start_time = time.time()
                 r = self.http_pool.request('POST', Config.command_url,
                                            headers={'Content-Type': 'application/json'},

@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-
 from perception.objects.line_segment import LineSegment
 from perception.objects.pipe_data import PipeData
 from perception.objects.road_info import RoadObject
@@ -13,27 +12,73 @@ def draw_bbox(frame, bbox, color):
     cv2.rectangle(frame, top_left, bottom_right, color=color, thickness=3)
 
 
-def visualize_road_objects(frame, road_objects: list[RoadObject], color=(255, 255, 255), initial_position=(0, 130), font_scale=0.8):
-    # Sort the traffic signs by distance
+def put_text(frame, text, position, font_scale, text_color=(0, 255, 255), thickness=2):
+    cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness)
+
+def put_text_with_background(frame, text, position, font_scale, thickness,text_color=(0, 0, 0), bg_color=(255, 255, 255)):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+    x, y = position
+    # Draw filled rectangle for background
+    cv2.rectangle(frame, (x, y - text_height - baseline), (x + text_width, y + baseline), bg_color, cv2.FILLED)
+    # Put text over the rectangle
+    cv2.putText(frame, text, (x, y), font, font_scale, text_color, thickness)
+
+def visualize_road_objects(frame, road_objects: list[RoadObject], color, font_scale, thickness):
+    if road_objects is None or len(road_objects) == 0:
+        return
+
+    # Sort the road objects by distance
     sorted_objects = sorted(road_objects, key=lambda obj: obj.distance)
 
-    # Display each sign's information on the frame
+    # Define padding between text and bounding box
+    padding = int(15 * font_scale)  # 10 pixels scaled
+
+    # Display each object's information above its bounding box
     for obj in sorted_objects:
         draw_bbox(frame, obj.bbox, color)
-        obj_info = ', '.join([f'{key}: {value}' for key, value in obj._asdict().items() if key != 'bbox'])
-        cv2.putText(frame, obj_info, initial_position, cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 2)
-        initial_position = (initial_position[0], initial_position[1] + 20)
 
+        # Prepare separate lines for label and "confidence distance"
+        label_text = f"{obj.label}"
+        conf_distance_text = f"{obj.conf * 100:.0f}%"
+        if obj.distance != float("inf"):
+            conf_distance_text += f" {obj.distance:.2f}m"
 
-def put_text(frame, text, position=(0, 100), font=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.8, color=(0, 255, 255), thickness=2):
-    cv2.putText(frame, text, position, font, font_scale, color, thickness)
+        # Calculate text sizes
+        (label_width, label_height), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+        (conf_width, conf_height), _ = cv2.getTextSize(conf_distance_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+
+        # Starting position for the second line (conf_distance_text)
+        text_x = int(obj.bbox[0])
+        text_y = int(obj.bbox[1]) - padding
+
+        # Calculate the y position for the first line (label_text)
+        label_y = text_y - conf_height - padding
+
+        # Ensure both lines are within the frame boundaries
+        if label_y - label_height < 0:
+            # Not enough space above, place text below the bounding box
+            label_y = int(obj.bbox[3]) + label_height + padding
+            conf_distance_y = label_y + conf_height + padding
+        else:
+            conf_distance_y = text_y
+
+        # Draw label with background
+        put_text_with_background(frame, label_text, (text_x, label_y), font_scale, text_color=(0, 0, 0),
+                                 bg_color=color, thickness=thickness)
+
+        # Draw confidence and distance with background
+        put_text_with_background(frame, conf_distance_text, (text_x, conf_distance_y), font_scale,
+                                 text_color=(0, 0, 0), bg_color=color, thickness=thickness)
 
 
 def define_lane_area(frame, center_line: LineSegment, right_line: LineSegment, alpha=0.2, mask_color=(0, 204, 119)):
-    lane_roi_points = np.array([(center_line.upper_x, center_line.upper_y),
-                                (right_line.upper_x, right_line.upper_y),
-                                (right_line.lower_x, right_line.lower_y),
-                                (center_line.lower_x, center_line.lower_y)], np.int32)
+    lane_roi_points = np.array([
+        (center_line.upper_x, center_line.upper_y),
+        (right_line.upper_x, right_line.upper_y),
+        (right_line.lower_x, right_line.lower_y),
+        (center_line.lower_x, center_line.lower_y)
+    ], np.int32)
     lane_roi_mask = np.zeros_like(frame)
     cv2.fillPoly(lane_roi_mask, [lane_roi_points], mask_color)
     cv2.addWeighted(frame, 1, lane_roi_mask, alpha, 0, frame)
@@ -72,24 +117,36 @@ def draw_car_position(frame, car_position, color=(2, 135, 247), radius=20):
 
 
 def display_behaviour(frame, behaviour: str):
-    put_text(frame, f'Behaviour: {behaviour}', position=(0, 20), color=(0, 0, 255))
+    height, width = frame.shape[:2]
+    font_scale = min(width, height) / 1000
+    put_text(frame, f'Behaviour: {behaviour}', position=(10, 30), font_scale=font_scale, text_color=(0, 0, 255))
 
 
-def visualize_data(video_info: VideoInfo, data: PipeData) -> np.ndarray:
+def visualize_data(video_info: VideoInfo, data: PipeData, raw_frame: np.ndarray) -> np.ndarray:
+    # Make a copy of the raw frame to draw on, as the original one is read-only due to shared memory
+    frame = raw_frame.copy()
+
     car_position = (int(video_info.width / 2), video_info.height)
-
-    if data.unfiltered_frame is None:
-        return data
-
-    frame = data.unfiltered_frame.copy()
     draw_car_position(frame, car_position)
-    display_behaviour(frame, data.behaviour)
 
     cv2.line(frame, (0, 600), (frame.shape[1], 600), color=(255, 255, 255), thickness=3)
 
-    visualize_road_objects(frame, data.traffic_signs, initial_position=(0, 130), color=(0, 0, 255), font_scale=0.6)
-    visualize_road_objects(frame, data.traffic_lights, initial_position=(0, 250), color=(0, 255, 0), font_scale=0.6)
-    visualize_road_objects(frame, data.pedestrians, initial_position=(0, 400), color=(255, 0, 0), font_scale=0.6)
+    # Calculate dynamic font_scale based on frame size if not provided
+    height, width = frame.shape[:2]
+    font_scale = min(width, height) / 1000  # Adjust denominator as needed for scaling
+    match video_info.width:
+        case n if 1920 < n:
+            text_thickness = 3
+        case n if 1280 <= n <= 1920:
+            text_thickness = 2
+        case n if n < 1280:
+            text_thickness = 1
+        case _:
+            text_thickness = 1
+
+    visualize_road_objects(frame, data.traffic_signs, color=(0, 255, 0), font_scale=font_scale, thickness=text_thickness)
+    visualize_road_objects(frame, data.traffic_lights, color=(0, 0, 255), font_scale=font_scale, thickness=text_thickness)
+    visualize_road_objects(frame, data.pedestrians, color=(255, 0, 0), font_scale=font_scale, thickness=text_thickness)
 
     if data.road_markings is not None:
         if len(data.road_markings.stop_lines):
@@ -110,11 +167,11 @@ def visualize_data(video_info: VideoInfo, data: PipeData) -> np.ndarray:
             draw_correct_path(frame, car_position, upper_lane_center)
             draw_actual_path(frame, car_position, upper_lane_center)
 
-            if data.heading_error is not None:
-                put_text(frame, f'Heading Error: {data.heading_error: .2f} degrees')
+            if data.heading_error_degrees is not None:
+                put_text_with_background(frame, f'Heading Error: {int(data.heading_error_degrees)}deg', position=(10, 50),
+                                         font_scale=font_scale, thickness=text_thickness, text_color=(255, 255, 255), bg_color=(0, 0, 0))
             if data.lateral_offset is not None:
-                put_text(frame, f'Lateral Offset: {data.lateral_offset: .2f}', color=(0, 0, 255), position=(0, 50))
-    else:
-        put_text(frame, "No road markings detected", position=(0, 50), color=(0, 0, 255))
+                put_text_with_background(frame, f'Lateral Offset: {data.lateral_offset * 100:.0f}%', position=(10, 90),
+                                            font_scale=font_scale, thickness=text_thickness, text_color=(255, 255, 255), bg_color=(0, 0, 0))
 
     return frame

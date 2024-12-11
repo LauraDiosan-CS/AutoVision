@@ -23,41 +23,43 @@ class SequentialFilterProcess(ControlledProcess):
         self.artificial_delay = artificial_delay
 
     def run(self):
-        memory_writer = SharedMemoryWriter(name=self.name, size=Config.pipe_memory_size)
-        self.finish_setup()
-        video_feed = SharedMemoryReader(name=Config.video_feed_memory_name)
+        try:
+            memory_writer = SharedMemoryWriter(name=self.name, size=Config.pipe_memory_size)
+            self.finish_setup()
+            video_feed = SharedMemoryReader(name=Config.video_feed_memory_name)
 
-        while self.keep_running.value:
-            frame_as_bytes = video_feed.blocking_read()
+            while self.keep_running.value:
+                frame_as_bytes = video_feed.blocking_read()
 
-            if frame_as_bytes is None: # End of video
-                break
-            # print(f"{self.name} received frame at {(time.perf_counter() - self.program_start_time):.2f} s")
+                if frame_as_bytes is None: # End of video
+                    break
 
-            self.last_processed_frame_version.value = video_feed.last_read_version()
+                self.last_processed_frame_version.value = video_feed.last_read_version()
 
-            frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
-            data = PipeData(frame=frame,
-                            frame_version=video_feed.last_read_version(),
-                            depth_frame=None,
-                            unfiltered_frame=frame,
-                            creation_time=time.perf_counter(),
-                            last_touched_process=self.name)
-            data.timing_info.start(f"Data Lifecycle {data.last_touched_process}")
-            data.timing_info.start(f"Process Data {data.last_touched_process}", parent=f"Data Lifecycle {data.last_touched_process}")
-            time.sleep(self.artificial_delay)
+                frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
+                data = PipeData(frame=frame,
+                                frame_version=video_feed.last_read_version(),
+                                depth_frame=None, # only available in real-time mode
+                                raw_frame=frame,
+                                creation_time=time.perf_counter(),
+                                last_filter_process_name=self.name)
+                data.timing_info.start(f"Data Lifecycle {data.last_filter_process_name}")
+                data.timing_info.start(f"Process Data {data.last_filter_process_name}", parent=f"Data Lifecycle {data.last_filter_process_name}")
 
-            for filter in self.filters:
-                filter.process(data)
+                if self.artificial_delay > 0:
+                    time.sleep(self.artificial_delay)
 
-            data.timing_info.stop("Process Data")
-            data.timing_info.start(f"Transfer Data (SPF -> MM) {data.last_touched_process}", parent=f"Data Lifecycle {data.last_touched_process}")
-            # print(f"Timing_Info SPF({self.name})->MM: {data.timing_info}")
-            data_as_bytes = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
-            memory_writer.write(data_as_bytes)
+                for filter in self.filters:
+                    filter.process(data)
 
-            del data
-            # print(f"{self.name} finished processing frame at {(time.perf_counter() - self.program_start_time):.2f} s")
+                data.timing_info.stop("Process Data")
+                data.timing_info.start(f"Transfer Data (SPF -> MM) {data.last_filter_process_name}", parent=f"Data Lifecycle {data.last_filter_process_name}")
+                data_as_bytes = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+                memory_writer.write(data_as_bytes)
 
-        memory_writer.close()
-        print(f"Exiting {self.name}")
+                del data
+
+            memory_writer.close()
+            print(f"Exiting {self.name}")
+        except Exception as e:
+            print(f"Error in {self.name}: {e}")

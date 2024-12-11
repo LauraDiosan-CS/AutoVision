@@ -21,6 +21,7 @@ from perception.visualize_data import visualize_data
 from processes.multiprocessing_manager import MultiProcessingManager
 from ripc import SharedMemoryCircularQueue
 
+
 def main():
     program_start_time = time.perf_counter()
     mp.set_start_method('spawn')
@@ -82,15 +83,15 @@ def main():
             iteration_counter += 1
             timer.start('Display Frame', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-            pipe_data.timing_info.stop(f"Transfer Data (MM -> Viz) {pipe_data.last_touched_process}")
-            pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_touched_process}")
+            pipe_data.timing_info.stop(f"Transfer Data (MM -> Viz) {pipe_data.last_filter_process_name}")
+            pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_filter_process_name}")
             timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
 
             # if iteration_counter % Config.fps == 0:
             #     print("Plotting pie charts")
             #     timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
 
-            frame = visualize_data(video_info=video_info, data=pipe_data)
+            frame = visualize_data(video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame)
             if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
                 squashed_frames = [[frame]]
 
