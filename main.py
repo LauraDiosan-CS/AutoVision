@@ -91,9 +91,9 @@ def main():
             #     print("Plotting pie charts")
             #     timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
 
-            frame = visualize_data(video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame)
+            drawn_frame = visualize_data(video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame)
             if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
-                squashed_frames = [[frame]]
+                squashed_frames = [[drawn_frame]]
 
                 for pipeline_name in pipeline_names:
                     if pipeline_name in pipe_data.processed_frames:
@@ -101,13 +101,13 @@ def main():
                     else:
                         # add black frame
                         squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
-                final_img = stack_images_v3(1, squashed_frames)
+                stacked_frame = stack_images_v3(1, squashed_frames)
+                cv2.imshow('CarVision', stacked_frame)
             else:
-                final_img = frame
+                cv2.imshow('CarVision', drawn_frame)
 
             if Config.save_processed_video and save_queue is not None:
-                save_queue.try_write(frame.tobytes())
-            cv2.imshow('CarVision', final_img)
+                save_queue.try_write(drawn_frame.tobytes())
 
         key = cv2.waitKey(5)
         if key & 0xFF == ord('q'):

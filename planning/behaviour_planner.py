@@ -28,8 +28,9 @@ class BehaviourPlanner:
 
         command = Behaviour.LaneKeeping
 
+
         if self.paused:
-            if (len(pedestrians) == 0 or pedestrians[0].distance > self.PEDESTRIAN_THRESHOLD_DISTANCE) \
+            if (not pedestrians or pedestrians[0].distance > self.PEDESTRIAN_THRESHOLD_DISTANCE) \
                     and (len(traffic_signs) == 0 or
                          traffic_lights[0].distance > self.TRAFFIC_LIGHT_THRESHOLD_DISTANCE or
                          not any(map(lambda traffic_light: traffic_light.label == "red", traffic_lights)
@@ -38,7 +39,7 @@ class BehaviourPlanner:
                 self.paused = False
                 command = Behaviour.Resume
         elif self.stop_after_line_invisible:
-            if len(horizontal_lines) > 0:
+            if horizontal_lines:
                 self.stop_after_line_invisible = False
                 match self.reason:
                     case "Stop":
@@ -49,17 +50,17 @@ class BehaviourPlanner:
                     case "Red light":
                         command = Behaviour.Pause
                         self.paused = True
-        elif len(traffic_signs) > 0 and traffic_signs[0].distance < self.TRAFFIC_SIGN_THRESHOLD_DISTANCE:
+        elif traffic_signs and traffic_signs[0].distance < self.TRAFFIC_SIGN_THRESHOLD_DISTANCE:
             match traffic_signs[0].label:
                 case "stop":
                     self.stop_after_line_invisible = True
                     self.reason = "Stop"
                 case "parking":
                     pass
-        elif len(pedestrians) > 0 and pedestrians[0].distance < self.PEDESTRIAN_THRESHOLD_DISTANCE:
+        elif pedestrians and pedestrians[0].distance < self.PEDESTRIAN_THRESHOLD_DISTANCE:
             self.stop_after_line_invisible = True
             self.reason = "Pedestrian"
-        elif len(traffic_lights) > 0:
+        elif traffic_lights:
             close_lights = filter(lambda traffic_light: traffic_light.distance < self.TRAFFIC_LIGHT_THRESHOLD_DISTANCE,
                                   traffic_lights)
             if any(map(lambda traffic_light: traffic_light.label == "red", close_lights)):
