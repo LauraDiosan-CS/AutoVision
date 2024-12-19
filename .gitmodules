@@ -1,0 +1,3 @@
+[submodule "ripc"]
+	path = ripc
+	url = https://github.com/TheLuckyCoder/ripc.git
