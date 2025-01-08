@@ -24,8 +24,8 @@ class MultiProcessingManager(ControlledProcess):
 
     def run(self):
         try:
-            control_loop_pipe_writer = SharedMemoryWriter(name=Config.control_loop_memory_name, size=Config.pipe_memory_size)
-            visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.pipe_memory_size, Config.visualizer_queue_element_count)
+            control_loop_pipe_writer = SharedMemoryWriter(name=Config.control_loop_memory_name, size=Config.shared_memory_size)
+            visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.shared_memory_size, Config.visualizer_queue_element_count)
 
             last_processed_frame_versions = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
             start_video = mp.Value('b', False)
@@ -34,7 +34,7 @@ class MultiProcessingManager(ControlledProcess):
                                                last_processed_frame_versions=last_processed_frame_versions, program_start_time=self.program_start_time)
             camera_process.start()
             camera_process.wait_for_setup()
-            print("Camera process started")
+            print("[MPManager] CameraProcess started")
 
             pipelines, _, _ = initialize_config()
 
@@ -63,14 +63,14 @@ class MultiProcessingManager(ControlledProcess):
 
             for process in parallel_processes:
                 process.wait_for_setup()
-            print("All SFP started")
+            print("[MPManager] All parallel processes started")
 
             controller_process = Controller(self.keep_running)
             controller_process.start()
-            print("Controller process started")
+            print("[MPManager] Controller process started")
 
             self.finish_setup()
-            print("Setup finished")
+            print("[MPManager] Setup finished")
 
             shared_memory_readers = [SharedMemoryReader(name=pipeline.name) for pipeline in pipelines]
 
@@ -105,7 +105,7 @@ class MultiProcessingManager(ControlledProcess):
                             f"Data Lifecycle {current_pipe_data.last_filter_process_name}")
 
                 if visualization_queue.is_full() and not is_full:
-                    print(f"!!! Visualization queue full with {len(visualization_queue)} elements !!! (your system is too slow lower the fps)")
+                    print(f"[MP Manager] !!! Visualization queue full with {len(visualization_queue)} elements !!! (your system is too slow lower the fps)")
                     is_full = True
 
             control_loop_pipe_writer.close()
@@ -116,14 +116,11 @@ class MultiProcessingManager(ControlledProcess):
 
     @staticmethod
     def join_all_processes(controller_process, parallel_processes):
-        print("Joining Controller process")
+        print("[MPManager] Joining controller process")
         controller_process.join()
-        print("Controller process joined")
+        print("[MPManager] Controller process joined")
 
-        print("Joining parallel processes")
+        print("[MPManager] Joining all parallel processes")
         for process in parallel_processes:
-            print(f"Joining {process.name}")
-            process.terminate()
-        print("All parallel processes joined")
-
-        print("Exiting MultiProcessingManager")
+            process.join()
+        print("[MPManager] All parallel processes joined")

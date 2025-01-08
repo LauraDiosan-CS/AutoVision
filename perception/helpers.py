@@ -90,9 +90,7 @@ def update_roi_bbox_for_video(video_name, roi_bbox, roi_config_path: str):
 
 def initialize_config() -> tuple[list[PipelineConfig], VideoInfo, VideoRois]:
     video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.width, Config.height, Config.roi_config_path)
-    print("\nVideo ROIs:")
-    for roi_type, roi_bbox in video_rois.items():
-        print(f"ROI type: {roi_type}, ROI bbox: {roi_bbox}")
+
     video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
                            width=Config.width, video_rois=video_rois)
     with open(Config.pipeline_config_path, 'r') as f:

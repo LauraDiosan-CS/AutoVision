@@ -24,7 +24,7 @@ class SequentialFilterProcess(ControlledProcess):
 
     def run(self):
         try:
-            memory_writer = SharedMemoryWriter(name=self.name, size=Config.pipe_memory_size)
+            memory_writer = SharedMemoryWriter(name=self.name, size=Config.shared_memory_size)
             self.finish_setup()
             video_feed = SharedMemoryReader(name=Config.video_feed_memory_name)
 
@@ -60,6 +60,5 @@ class SequentialFilterProcess(ControlledProcess):
                 del data
 
             memory_writer.close()
-            print(f"Exiting {self.name}")
         except Exception as e:
-            print(f"Error in {self.name}: {e}")
+            print(f"[{self.name}] Error: {e}")

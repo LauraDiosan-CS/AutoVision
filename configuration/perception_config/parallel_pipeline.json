@@ -1,6 +1,6 @@
 [
     {
-        "name": "sign_detection",
+        "name": "SignDetection",
         "filters": {
             "roi": {
                 "roi_type": "signs",
@@ -13,7 +13,7 @@
         }
     },
     {
-        "name": "traffic_light_detection",
+        "name": "TrafficLightDetection",
         "filters": {
             "roi": {
                 "roi_type": "traffic_lights",
@@ -26,7 +26,7 @@
         }
     },
     {
-        "name": "pedestrian_detection",
+        "name": "PedestrianDetection",
         "filters": {
             "roi": {
                 "roi_type": "pedestrians",
@@ -39,7 +39,7 @@
         }
     },
     {
-        "name": "lane_detection",
+        "name": "LaneDetection",
         "filters": {
             "roi": {
                 "roi_type": "lines",

@@ -1,6 +1,6 @@
 [
     {
-        "name": "lane_detection",
+        "name": "LaneDetection",
         "filters": {
             "roi": {
                 "roi_type": "lines",

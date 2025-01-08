@@ -41,7 +41,7 @@ def main():
     save_queue = None
     video_writer_process = None
     if Config.save_processed_video:
-        save_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.save_draw_memory_name, Config.frame_size, Config.save_queue_element_count)
+        save_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.save_final_memory_name, Config.frame_size, Config.save_queue_element_count)
 
         # Extract the name without the extension
         video_name = os.path.splitext(Config.video_name)[0]
@@ -54,7 +54,7 @@ def main():
             fps=Config.fps
         )
 
-        video_writer_process = VideoWriterProcess(save_info=save_info, shared_memory_name=Config.save_draw_memory_name,
+        video_writer_process = VideoWriterProcess(save_info=save_info, shared_memory_name=Config.save_final_memory_name,
                                                   keep_running=keep_running, program_start_time=program_start_time)
         video_writer_process.start()
 
@@ -118,45 +118,27 @@ def main():
                 cv2.waitKey(0)
             else:
                 print("No frame to draw ROIs on")
-        elif key & 0xFF == ord('s'):
-            save_dir_path = os.path.join(os.getcwd(), Config.screenshot_dir)
-            if not os.path.exists(save_dir_path):
-                os.makedirs(save_dir_path)
-
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
-            screenshot_name = f'{Config.video_name}_{timestamp}.jpg'
-            screenshot_path = os.path.join(save_dir_path, screenshot_name)
-            cv2.imwrite(screenshot_path, pipe_data.frame)
 
         timer.stop('Display Frame')
 
     cv2.destroyAllWindows()
 
+    print(f"[Timing] Stopped at {time.perf_counter() - program_start_time:.2f} s, completed {iteration_counter} iterations, frame_count {pipe_data.frame_version}")
     keep_running.value = False
-    print("Initiating Termination of MultiProcessingManager")
+
+    print("[Main] Joining MultiProcessingManager")
+    mp_manager.join()
+    print("[Main] MultiProcessingManager joined")
 
     if save_queue is not None and video_writer_process is not None:
-        print("Joining processed frame saving process")
+        print("[Main] Joining VideoWriterProcess")
         video_writer_process.join()
-    print("Processed frame saving process joined")
-
-    print("Joining MultiProcessingManager")
-    mp_manager.terminate()
-    print("MultiProcessingManager joined")
+    print("[Main] Joined VideoWriterProcess")
 
     timer.stop('Overall Timer')
     timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
     plt.show()  # Keep the pie chart open
 
-
-def update_config(config, args):
-    for arg in vars(args):
-        if hasattr(config, arg):
-            setattr(config, arg, getattr(args, arg))
-    Config.print_config()
-
-
 if __name__ == '__main__':
-    args = argparse.ArgumentParser().parse_args()
-    update_config(Config, args)
+    print("[Main] Config:", Config.as_json())
     main()

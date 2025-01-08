@@ -15,23 +15,22 @@ from planning.behaviour_planner import BehaviourPlanner
 class Controller(mp.Process):
     def __init__(self, keep_running: mp.Value):
         super().__init__()
+        self.http_connection_failed_count = 0
+        self.steering_pid = None
+        self.http_pool = None
         self.keep_running = keep_running
-
-
 
     def run(self):
         try:
             behaviour_planner = BehaviourPlanner()
             self.http_pool = urllib3.PoolManager()
-            self.http_connection_failed_count = 0
             self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
             memory_reader = SharedMemoryReader(name=Config.control_loop_memory_name)
 
             while self.keep_running:
                 pipe_data_bytes = memory_reader.blocking_read()
                 if pipe_data_bytes is None:
-                    print(f"Exiting {self.name}")
-                    return
+                    continue
 
                 pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
@@ -46,9 +45,8 @@ class Controller(mp.Process):
                 normalized_steering_angle = self.compute_normalized_steering_angle(pipe_data.heading_error_degrees, pipe_data.lateral_offset)
 
                 self.handle_http_communication(behaviour, pipe_data.heading_error_degrees, pipe_data.lateral_offset)
-            print("Exiting Controller")
         except Exception as e:
-            print(f"Error in Controller: {e}")
+            print(f"[Controller] Error: {e}")
             self.keep_running.value = False
 
     def compute_normalized_steering_angle(self, heading_error, lateral_offset):
