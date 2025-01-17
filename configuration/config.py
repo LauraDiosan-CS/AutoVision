@@ -1,9 +1,11 @@
 import os
 from enum import Enum
 
+
 class VisualizationStrategy(Enum):
     ALL_FRAMES = 1
     NEWEST_FRAME = 2
+
 
 class MultiprocessingStrategy(Enum):
     LIVE = 1
@@ -11,13 +13,12 @@ class MultiprocessingStrategy(Enum):
     ALL_FRAMES_ALL_PROCESSES = 3
 
 
-
 class Config:
     # Directories
     models_dir_path = 'configuration/models/'
     perception_config_dir = 'configuration/perception_config/'
     videos_dir = 'files/videos'
-    recordings_dir = os.path.join(videos_dir, 'recordings')
+    recordings_dir = 'files/recordings'
 
     # Config Files
     pipeline_config_path = os.path.join(perception_config_dir, 'parallel_pipeline.json')
@@ -26,14 +27,14 @@ class Config:
     # Video to process
     video_name = "Raw_Car_Pov_Final.mp4"
     color_channels = 3
-    fps = 30
+    camera_fps = 240
     width = 640 * 2
     height = 360 * 2
 
     # General Config
-    shared_memory_size_multiplier = 10
-    visualizer_queue_element_count = fps * 8
-    save_queue_element_count = fps
+    approx_max_pipe_data_size_multiplier = 10
+    visualizer_queue_element_count = 30 * 8
+    save_queue_element_count = 30
 
     save_processed_video = True
     visualizer_strategy = VisualizationStrategy.NEWEST_FRAME
@@ -41,7 +42,11 @@ class Config:
 
     # Shared Memory Config
     frame_size = width * height * color_channels
-    shared_memory_size = frame_size * shared_memory_size_multiplier
+    max_pipe_data_size = frame_size * 10 # approximation
+
+    assert visualizer_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024, "Visualizer queue size is too big"
+    assert save_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024, "Save queue size is too big"
+
 
     # Shared Memory Names
     video_feed_memory_name = "video_feed"
@@ -61,15 +66,30 @@ class Config:
     @classmethod
     def as_json(cls):
         import json
-        relevant_keys = ['video_name', 'width', 'height', 'fps', 'shared_memory_size_multiplier',
+        relevant_keys = ['video_name', 'width', 'height', 'camera_fps', 'approx_max_pipe_data_size_multiplier',
                          'visualizer_queue_element_count', 'save_queue_element_count',
                          'visualizer_strategy', 'mp_strategy']
+
         config_data = {
             k: v.name if isinstance(v, Enum) else v
             for k, v in cls.__dict__.items()
             if not k.startswith('__') and not callable(v) and not isinstance(v, classmethod) and k in relevant_keys
         }
+
+        with open(cls.pipeline_config_path, 'r') as f:
+            pipeline_config = json.load(f)
+
+        with open(cls.roi_config_path, 'r') as f:
+            roi_config = json.load(f)
+
+        config_data['config_files'] = {
+            'pipeline_config': pipeline_config,
+            # 'roi_config': roi_config # Too messy to include
+        }
+
         return json.dumps(config_data, indent=4)
+
+
 
 if __name__ == "__main__":
     print(Config.as_json())

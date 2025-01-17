@@ -26,7 +26,7 @@ class TimingInfo:
         def get_total_time(label):
             total_time = self.timings.get(label, 0)
             if label in self.start_times:  # Add time since start if still active
-                total_time += time.time() - self.start_times[label]
+                total_time += time.perf_counter() - self.start_times[label]
             return total_time
 
         def build_hierarchy(label, indent=0):
@@ -64,9 +64,12 @@ class TimingInfo:
         if parent is not None and parent not in self.start_times:
             raise ValueError(f"Parent timer '{parent}' is not started. Cannot start '{label}'.")
 
-        self.start_times[label] = time.time() - extra_time_seconds
+        self.start_times[label] = time.perf_counter() - extra_time_seconds
 
         if parent is None:
+            if self.root_label == label:
+                return
+
             if self.root_label:
                 raise ValueError(f"Root label is already set to '{self.root_label}'. Cannot set to '{label}'.")
             self.root_label = label
@@ -87,7 +90,7 @@ class TimingInfo:
                     # print(f"Stopping child: {child} for parent: {label}")
                     self.stop(child)
 
-        elapsed = time.time() - self.start_times.pop(label)
+        elapsed = time.perf_counter() - self.start_times.pop(label)
         if label in self.timings:
             self.timings[label] += elapsed
             self.counts[label] += 1
@@ -111,7 +114,7 @@ class TimingInfo:
         if not self.start_times:
             print("No active timers to pause.")
             return
-        current_time = time.time()
+        current_time = time.perf_counter()
         for label in list(self.start_times.keys()):
             self.paused_times[label] = current_time - self.start_times.pop(label)
             if label not in self.timings:  # Check if this would be the first time this label is stopped
@@ -125,7 +128,7 @@ class TimingInfo:
         if not self.paused_times:
             print("No timers to restart.")
             return
-        current_time = time.time()
+        current_time = time.perf_counter()
         for label in list(self.paused_times.keys()):
             value = self.paused_times.pop(label)
             self.start_times[label] = current_time - value
@@ -137,17 +140,13 @@ class TimingInfo:
                 self.counts[label] -= 1
 
 
-    def append_hierarchy(self, other, label: str = None):
-        # print(f"Appending hierarchy of {other.root_label} to {label if label else self.root_label}")
-        # print(f"Current hierarchy: {self.hierarchy}")
-        # print(f"Other hierarchy: {other.hierarchy}")
-
-        if label is None:
-            label = self.root_label  # Use the root label of the current TimingInfo
+    def append_hierarchy(self, other, parent_label_of_other: str = None):
+        if parent_label_of_other is None:
+            parent_label_of_other = self.root_label  # Use the root label of the current TimingInfo
         # Ensure the label exists in the current hierarchy
-        elif label not in self.hierarchy:
-            print(f"Label '{label}' does not exist in the current hierarchy.")
-            raise ValueError(f"Label '{label}' does not exist in the current hierarchy.")
+        elif parent_label_of_other not in self.hierarchy:
+            print(f"Label '{parent_label_of_other}' does not exist in the current hierarchy.")
+            raise ValueError(f"Label '{parent_label_of_other}' does not exist in the current hierarchy.")
 
         # Ensure the other TimingInfo has a root
         if other.root_label is None:
@@ -155,10 +154,11 @@ class TimingInfo:
             raise ValueError("The other TimingInfo has no root label.")
 
         # Append the other root label under the current label, only if not already present
-        if label not in self.hierarchy:
-            self.hierarchy[label] = []
-        if other.root_label not in self.hierarchy[label]:
-            self.hierarchy[label].append(other.root_label)
+        if self.root_label != other.root_label:
+            if parent_label_of_other not in self.hierarchy:
+                self.hierarchy[parent_label_of_other] = []
+            if other.root_label not in self.hierarchy[parent_label_of_other]:
+                self.hierarchy[parent_label_of_other].append(other.root_label)
 
         # Recursively merge the hierarchy of the other TimingInfo to self
         def merge_hierarchy(src_hierarchy, dst_hierarchy, src_label):

@@ -79,19 +79,19 @@ class TimingVisualizer:
                     "yellow": ["whitesmoke", "beige", "lightyellow"],
                     "purple": ["thistle", "lavender", "plum"],
                 },
+                "white": {
+                    "red": ["crimson", "orangered", "magenta", "darkred", "firebrick", "maroon", "brown", "indianred"],
+                    "green": ["forestgreen", "darkgreen", "seagreen", "limegreen", "greenyellow", "chartreuse", "lime"],
+                    "blue": ["skyblue", "navy", "aqua", "teal", "cyan", "turquoise", "darkturquoise", "lightblue"],
+                    "purple": ["violet", "indigo", "lavender", "plum", "purple", "darkviolet", "blueviolet"],
+                    "yellow": ["gold", "orange"]
+                },
                 "brown": {
                     "red": ["saddlebrown", "sienna", "chocolate"],
                     "orange": ["peru", "tan", "burlywood"],
                     "pink": ["rosybrown", "lightcoral", "indianred"],
                     "yellow": ["gold", "orange", "darkorange"],
                     "green": ["olive", "darkolivegreen", "olivedrab"],
-                },
-                "white": {
-                    "red": ["crimson","orangered","magenta", "darkred", "firebrick", "maroon", "brown", "indianred"],
-                    "green": ["forestgreen", "darkgreen", "seagreen", "limegreen", "greenyellow", "chartreuse", "lime"],
-                    "blue": ["skyblue", "navy", "aqua", "teal", "cyan", "turquoise", "darkturquoise", "lightblue"],
-                    "purple": ["violet", "indigo", "lavender", "plum", "purple", "darkviolet", "blueviolet"],
-                    "yellow": ["gold", "orange"]
                 },
             }
         }
@@ -130,7 +130,7 @@ class TimingVisualizer:
         return {label: self.timings[label] / self.counts[label] for label in self.timings}
 
     def plot_pie_charts(self, save_path=None):
-        start_time = time.time()
+        start_time = time.perf_counter()
         self.timing_info.pause_all()
 
         # Count the total number of charts to be plotted
@@ -235,7 +235,7 @@ class TimingVisualizer:
             self.save_timings(save_path + ".csv")
 
         self.timing_info.restart_all()
-        print(f"Plotting took {time.time() - start_time:.2f} s")
+        print(f"Plotting took {time.perf_counter() - start_time:.2f} s")
 
     def save_timings(self, save_path):
         avgs = self.calculate_averages()
@@ -249,18 +249,18 @@ class TimingVisualizer:
 
     def restart_timers(self, running_timers):
         if self.root_label in running_timers:
-            self.start_times[self.root_label] = time.time() - running_timers[self.root_label]
+            self.start_times[self.root_label] = time.perf_counter() - running_timers[self.root_label]
             self.timings[self.root_label] -= running_timers[self.root_label]
             self.counts[self.root_label] -= 1
             running_timers.pop(self.root_label)
         for label, elapsed in running_timers.items():
-            self.start_times[label] = time.time() - elapsed
+            self.start_times[label] = time.perf_counter() - elapsed
 
     def stop_and_store_active_timers(self) -> dict[str, float]:
         running_timers = {}
 
         if self.root_label in self.start_times:
-            running_timers[self.root_label] = time.time() - self.start_times.pop(self.root_label)
+            running_timers[self.root_label] = time.perf_counter() - self.start_times.pop(self.root_label)
             if self.root_label not in self.timings:
                 self.timings[self.root_label] = running_timers[self.root_label]
                 self.counts[self.root_label] = 1
@@ -269,7 +269,7 @@ class TimingVisualizer:
                 self.counts[self.root_label] += 1
 
         for label in list(self.start_times.keys()):
-            running_timers[label] = time.time() - self.start_times.pop(label)
+            running_timers[label] = time.perf_counter() - self.start_times.pop(label)
         return running_timers
 
 

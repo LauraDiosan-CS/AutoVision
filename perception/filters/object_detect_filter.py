@@ -84,7 +84,7 @@ class TrafficLightDetect(ObjectDetectionFilter):
             self.model.cuda()
 
         yolo_results = self.model(data.frame, verbose=self.verbose)
-        data.traffic_lights = self.pre_process_result(yolo_results[0], data)
+        data.traffic_lights = self.pre_process_result(yolo_results[0], data, 0.3)
         data.frame = yolo_results[0].plot()
 
         return super().process(data)
@@ -99,7 +99,7 @@ class PedestrianDetect(ObjectDetectionFilter):
             self.model.cuda()
 
         yolo_results = self.model(data.frame, verbose=self.verbose)
-        data.pedestrians = self.pre_process_result(yolo_results[0], data)
+        data.pedestrians = self.pre_process_result(yolo_results[0], data, 0.3)
         data.frame = yolo_results[0].plot()
 
         return super().process(data)

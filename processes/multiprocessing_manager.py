@@ -18,19 +18,20 @@ from processes.sequential_filter_process import SequentialFilterProcess
 class MultiProcessingManager(ControlledProcess):
     __slots__ = ['keep_running']
 
-    def __init__(self, program_start_time: float, keep_running: mp.Value, name=None):
+    def __init__(self, program_start_time: float, keep_running: mp.Value, start_video: mp.Value, name=None):
         super().__init__(name=name, program_start_time=program_start_time)
         self.keep_running = keep_running
+        self.start_video = start_video
 
     def run(self):
         try:
-            control_loop_pipe_writer = SharedMemoryWriter(name=Config.control_loop_memory_name, size=Config.shared_memory_size)
-            visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.shared_memory_size, Config.visualizer_queue_element_count)
+            control_loop_pipe_writer = SharedMemoryWriter(name=Config.control_loop_memory_name, size=Config.max_pipe_data_size)
+            visualization_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.visualization_memory_name, Config.max_pipe_data_size, Config.visualizer_queue_element_count)
 
             last_processed_frame_versions = [mp.Value(ctypes.c_int, 0) for _ in range(4)]
-            start_video = mp.Value('b', False)
 
-            camera_process = MockCameraProcess(start_video=start_video, keep_running=self.keep_running,
+
+            camera_process = MockCameraProcess(start_video=self.start_video, keep_running=self.keep_running,
                                                last_processed_frame_versions=last_processed_frame_versions, program_start_time=self.program_start_time)
             camera_process.start()
             camera_process.wait_for_setup()
@@ -76,37 +77,50 @@ class MultiProcessingManager(ControlledProcess):
 
             current_pipe_data = PipeData(frame=None, frame_version=-1, depth_frame=None, last_filter_process_name="None",
                                          creation_time=time.time(), raw_frame=None)
-            current_pipe_data.timing_info.start("Process Frame")
 
-            start_video.value = True # All Setup finished allow the video reader to start
-
-            is_full = False
+            current_pipe_data.timing_info.start("Process Video")
+            self.start_video.value = True # All Setup finished allow the video reader to start
 
             while self.keep_running.value:
                 for reader in shared_memory_readers:
                     pipe_data_bytes = reader.try_read()
 
                     if pipe_data_bytes:
-
+                        start_time = time.perf_counter()
                         new_pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-                        new_pipe_data.timing_info.stop(f"Transfer Data (SPF -> MM) {new_pipe_data.last_filter_process_name}")
-                        new_pipe_data.timing_info.start(f"Merge Data {new_pipe_data.last_filter_process_name}",
-                                                        parent=f"Data Lifecycle {new_pipe_data.last_filter_process_name}")
-                        current_pipe_data.merge(new_pipe_data)
-                        current_pipe_data.timing_info.stop(f"Merge Data {new_pipe_data.last_filter_process_name}")
-                        current_pipe_data.timing_info.start(f"Transfer Data (MM -> Viz+) {new_pipe_data.last_filter_process_name}",
-                                                            parent=f"Data Lifecycle {current_pipe_data.last_filter_process_name}")
+                        time_to_load = (time.perf_counter() - start_time) * 1000
 
+                        start_time = time.perf_counter()
+                        dl = f"Data Lifecycle {new_pipe_data.last_filter_process_name[0]}"
+                        tf1 = f"Transfer Data {new_pipe_data.last_filter_process_name[0]}"
+                        md = f"Merge Data {new_pipe_data.last_filter_process_name[0]}"
+                        tf2 = f"Transfer Merged Data {new_pipe_data.last_filter_process_name[0]}"
+
+                        # new_pipe_data.timing_info.stop(tf1)
+                        new_pipe_data.timing_info.start(md, parent=dl)
+                        current_pipe_data.merge(new_pipe_data)
+                        current_pipe_data.timing_info.stop(md)
+                        current_pipe_data.timing_info.start(tf2, dl)
+                        time_to_merge = (time.perf_counter() - start_time) * 1000
+
+                        start_time = time.perf_counter()
                         pickled_pipe_data = pickle.dumps(current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
+                        time_to_pickle = (time.perf_counter() - start_time) * 1000
+
+                        start_time = time.perf_counter()
                         control_loop_pipe_writer.write(pickled_pipe_data)
 
                         visualization_queue.try_write(pickled_pipe_data)
-                        current_pipe_data.timing_info.remove_recursive(
-                            f"Data Lifecycle {current_pipe_data.last_filter_process_name}")
+                        time_to_write = (time.perf_counter() - start_time) * 1000
+                        current_pipe_data.timing_info.remove_recursive(dl)
+                        time_to_remove = (time.perf_counter() - start_time) * 1000
 
-                if visualization_queue.is_full() and not is_full:
+                        # print(f"[MP Manager] Time to load: {time_to_load:.2f} ms, Time to merge: {time_to_merge:.2f} ms, Time to pickle: {time_to_pickle:.2f} ms, Time to write: {time_to_write:.2f} ms, Time to remove: {time_to_remove:.2f} ms")
+
+                        del new_pipe_data
+
+                if visualization_queue.is_full():
                     print(f"[MP Manager] !!! Visualization queue full with {len(visualization_queue)} elements !!! (your system is too slow lower the fps)")
-                    is_full = True
 
             control_loop_pipe_writer.close()
             self.join_all_processes(controller_process, parallel_processes)
@@ -116,9 +130,9 @@ class MultiProcessingManager(ControlledProcess):
 
     @staticmethod
     def join_all_processes(controller_process, parallel_processes):
-        print("[MPManager] Joining controller process")
+        print("[MPManager] Joining ControllerProcess")
         controller_process.join()
-        print("[MPManager] Controller process joined")
+        print("[MPManager] ControllerProcess joined")
 
         print("[MPManager] Joining all parallel processes")
         for process in parallel_processes:

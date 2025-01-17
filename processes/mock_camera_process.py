@@ -9,8 +9,6 @@ from configuration.config import Config, MultiprocessingStrategy
 from processes.controlled_process import ControlledProcess
 
 
-
-
 class MockCameraProcess(ControlledProcess):
     def __init__(self, start_video: mp.Value, keep_running: mp.Value, last_processed_frame_versions: mp.Array, program_start_time: float, name: str = None):
         super().__init__(name=name, program_start_time=program_start_time)
@@ -25,7 +23,7 @@ class MockCameraProcess(ControlledProcess):
             camera_shared_memory_writer = SharedMemoryWriter(name=Config.video_feed_memory_name, size=Config.frame_size)
             self.finish_setup()
 
-            time_between_frames = 1 / Config.fps
+            time_between_frames = 1 / Config.camera_fps
 
             video_path = str(os.path.join(Config.videos_dir, Config.video_name))
             capture = cv2.VideoCapture(video_path)

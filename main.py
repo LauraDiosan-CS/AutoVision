@@ -1,4 +1,3 @@
-import argparse
 import multiprocessing as mp
 import os
 import pickle
@@ -26,13 +25,30 @@ def main():
     program_start_time = time.perf_counter()
     mp.set_start_method('spawn')
 
-    timer = TimingVisualizer()
-    timer.start('Overall Timer')
-    timer.start('Setup', parent='Overall Timer')
+    timing_visualizer = TimingVisualizer()
+    ot = 'Overall Timer'
+    se = 'Setup'
+    timing_visualizer.start(ot)
+    timing_visualizer.start(se, parent=ot)
+
+    print("[Main] Config:", Config.as_json())
+    # create a new folder in the recordings directory
+    os.makedirs(Config.recordings_dir, exist_ok=True)
+
+    # Extract the name without the extension
+    video_name = os.path.splitext(Config.video_name)[0]
+
+    recording_dir_path = os.path.join(Config.recordings_dir, f"{video_name}-{datetime.now().strftime('%Y:%m:%d-%H:%M:%S')}")
+
+    os.makedirs(recording_dir_path)
+
+    with open(os.path.join(recording_dir_path, 'config.json'), 'w') as file:
+        file.write(Config.as_json())
 
     keep_running = mp.Value('b', True)
+    start_video = mp.Value('b', False)
 
-    mp_manager = MultiProcessingManager(keep_running=keep_running, program_start_time=program_start_time)
+    mp_manager = MultiProcessingManager(keep_running=keep_running, program_start_time=program_start_time, start_video=start_video)
     mp_manager.start()
     mp_manager.wait_for_setup()
 
@@ -43,15 +59,12 @@ def main():
     if Config.save_processed_video:
         save_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.create(Config.save_final_memory_name, Config.frame_size, Config.save_queue_element_count)
 
-        # Extract the name without the extension
-        video_name = os.path.splitext(Config.video_name)[0]
-
         save_info = SaveInfo(
-            video_path=os.path.join(Config.recordings_dir,
-                                    f"Processed_{video_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.mp4"),
+            video_path=os.path.join(recording_dir_path,
+                                    f"Final_{video_name}.mp4"),
             width=Config.width,
             height=Config.height,
-            fps=Config.fps
+            fps=Config.camera_fps
         )
 
         video_writer_process = VideoWriterProcess(save_info=save_info, shared_memory_name=Config.save_final_memory_name,
@@ -67,7 +80,7 @@ def main():
     pipe_data = None
     iteration_counter = 0
     cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
-    timer.stop('Setup')
+    timing_visualizer.stop(se)
 
     while True:
         if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
@@ -81,11 +94,14 @@ def main():
 
         if pipe_data_bytes is not None:
             iteration_counter += 1
-            timer.start('Display Frame', parent='Overall Timer')
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-            pipe_data.timing_info.stop(f"Transfer Data (MM -> Viz) {pipe_data.last_filter_process_name}")
-            pipe_data.timing_info.stop(f"Data Lifecycle {pipe_data.last_filter_process_name}")
-            timer.timing_info.append_hierarchy(pipe_data.timing_info, label="Overall Timer")
+
+            dl = f"Data Lifecycle {pipe_data.last_filter_process_name[0]}"
+            tf2 = f"Transfer Data (MM -> Viz) {pipe_data.last_filter_process_name[0]}"
+
+            pipe_data.timing_info.stop(tf2)
+            pipe_data.timing_info.stop(dl)
+            timing_visualizer.timing_info.append_hierarchy(pipe_data.timing_info, parent_label_of_other=ot)
 
             # if iteration_counter % Config.fps == 0:
             #     print("Plotting pie charts")
@@ -119,11 +135,9 @@ def main():
             else:
                 print("No frame to draw ROIs on")
 
-        timer.stop('Display Frame')
-
+    timing_visualizer.start("Cleanup", parent=ot)
     cv2.destroyAllWindows()
 
-    print(f"[Timing] Stopped at {time.perf_counter() - program_start_time:.2f} s, completed {iteration_counter} iterations, frame_count {pipe_data.frame_version}")
     keep_running.value = False
 
     print("[Main] Joining MultiProcessingManager")
@@ -135,10 +149,11 @@ def main():
         video_writer_process.join()
     print("[Main] Joined VideoWriterProcess")
 
-    timer.stop('Overall Timer')
-    timer.plot_pie_charts(save_path=os.path.join(Config.recordings_dir, 'timings'))
+    timing_visualizer.stop("Cleanup")
+    timing_visualizer.stop(ot)
+    print(timing_visualizer.timing_info)
+    timing_visualizer.plot_pie_charts(save_path=os.path.join(recording_dir_path, 'timings'))
     plt.show()  # Keep the pie chart open
 
 if __name__ == '__main__':
-    print("[Main] Config:", Config.as_json())
     main()

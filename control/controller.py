@@ -30,7 +30,7 @@ class Controller(mp.Process):
             while self.keep_running:
                 pipe_data_bytes = memory_reader.blocking_read()
                 if pipe_data_bytes is None:
-                    continue
+                    break
 
                 pipe_data: PipeData = pickle.loads(pipe_data_bytes)
 
