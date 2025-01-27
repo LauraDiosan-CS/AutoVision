@@ -21,13 +21,14 @@ class Config:
     recordings_dir = 'files/recordings'
 
     # Config Files
-    pipeline_config_path = os.path.join(perception_config_dir, 'parallel_pipeline.json')
+    pipeline_config_path = os.path.join(perception_config_dir, 'benchmark_pipeline.json')
     roi_config_path = os.path.join(perception_config_dir, 'roi.json')
 
     # Video to process
     video_name = "Raw_Car_Pov_Final.mp4"
     color_channels = 3
-    camera_fps = 240
+    camera_fps = 500
+    output_fps = 30
     width = 640 * 2
     height = 360 * 2
 
@@ -37,6 +38,7 @@ class Config:
     save_queue_element_count = 30
 
     save_processed_video = True
+    enable_pipeline_visualization = False
     visualizer_strategy = VisualizationStrategy.NEWEST_FRAME
     mp_strategy = MultiprocessingStrategy.ALL_FRAMES_FASTEST_PROCESS
 
@@ -49,11 +51,11 @@ class Config:
 
 
     # Shared Memory Names
-    video_feed_memory_name = "video_feed"
-    control_loop_memory_name = "control_loop"
-    visualization_memory_name = "visualizer"
-    save_raw_memory_name = "save_raw"
-    save_final_memory_name = "save_final"
+    shm_base_name = "CAR_VISION_SHM_"
+    video_feed_memory_name = shm_base_name + "VIDEO_FEED"
+    control_loop_memory_name = shm_base_name + "CONTROL_LOOP"
+    visualization_memory_name = shm_base_name + "VISUALIZATION"
+    save_final_memory_name = shm_base_name + "SAVE_FINAL"
 
     # HTTP Config
     http_connection_failed_limit = 0

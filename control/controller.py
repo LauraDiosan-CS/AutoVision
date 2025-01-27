@@ -4,7 +4,7 @@ import time
 
 import torch.multiprocessing as mp
 import urllib3
-from ripc import SharedMemoryReader
+from ripc import SharedMessage
 
 from configuration.config import Config
 from control.pid_controller import PIDController
@@ -25,7 +25,7 @@ class Controller(mp.Process):
             behaviour_planner = BehaviourPlanner()
             self.http_pool = urllib3.PoolManager()
             self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
-            memory_reader = SharedMemoryReader(name=Config.control_loop_memory_name)
+            memory_reader = SharedMessage.open(Config.control_loop_memory_name)
 
             while self.keep_running:
                 pipe_data_bytes = memory_reader.blocking_read()
@@ -43,6 +43,8 @@ class Controller(mp.Process):
                     )
 
                 normalized_steering_angle = self.compute_normalized_steering_angle(pipe_data.heading_error_degrees, pipe_data.lateral_offset)
+
+
 
                 self.handle_http_communication(behaviour, pipe_data.heading_error_degrees, pipe_data.lateral_offset)
         except Exception as e:

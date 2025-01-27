@@ -1,10 +1,15 @@
-import cv2
-import numpy as np
-from ripc import SharedMemoryCircularQueue
 import multiprocessing as mp
+import pickle
 
-from configuration.config import Config, VisualizationStrategy
+import cv2
+import ripc
+from ripc import SharedQueue
+
+from configuration.config import Config
+from perception.helpers import get_roi_bbox_for_video
 from perception.objects.save_info import SaveInfo
+from perception.objects.video_info import VideoRois, VideoInfo
+from perception.visualize_data import visualize_data
 from processes.controlled_process import ControlledProcess
 
 
@@ -18,32 +23,30 @@ class VideoWriterProcess(ControlledProcess):
 
     def run(self):
         try:
-            save_queue: SharedMemoryCircularQueue = SharedMemoryCircularQueue.open(self.shared_memory_name)
-
-            self.finish_setup()
-
+            save_queue = SharedQueue.open(self.shared_memory_name, mode=ripc.OpenMode.ReadOnly)
             video_writer = cv2.VideoWriter(self.save_info.video_path,
                                            cv2.VideoWriter_fourcc(*'mp4v'),
                                            self.save_info.fps,
                                            (self.save_info.width, self.save_info.height))
 
-            frame_as_bytes = None
+            video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.width, Config.height,
+                                                           Config.roi_config_path)
+            video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
+                                   width=Config.width, video_rois=video_rois)
+            read_count = 0
             while self.keep_running.value:
-                if Config.visualizer_strategy == VisualizationStrategy.NEWEST_FRAME:
-                    if len(save_queue) == 0:
-                        frame_as_bytes = None
-                    else:
-                        list_pipe_data_bytes = save_queue.read_all()
-                        frame_as_bytes = list_pipe_data_bytes[-1]
-                elif Config.visualizer_strategy == VisualizationStrategy.ALL_FRAMES:
-                    frame_as_bytes = save_queue.try_read()
+                pipe_data_as_bytes = save_queue.blocking_read()
+                read_count += 1
+                print(f"[VideoWriterProcess] Read {read_count} elems from queue")
 
-                if frame_as_bytes is None:
-                    continue
+                if pipe_data_as_bytes is None:
+                    break
 
-                frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
+                pipe_data = pickle.loads(pipe_data_as_bytes)
 
-                video_writer.write(frame)
+                drawn_frame = visualize_data(video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame)
+
+                video_writer.write(drawn_frame)
 
             print("VideoWriterProcess: Video ended")
             video_writer.release()

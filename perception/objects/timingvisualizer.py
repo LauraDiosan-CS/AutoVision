@@ -95,6 +95,36 @@ class TimingVisualizer:
                 },
             }
         }
+        # self.color_hierarchy = {
+        #     "gray": {
+        #         "lightgray": {
+        #             "blue": ["silver", "lightsteelblue", "aliceblue"],
+        #             "green": ["gainsboro", "palegreen", "honeydew"],
+        #             "yellow": ["whitesmoke", "beige", "lightyellow"],
+        #             "purple": ["thistle", "lavender", "plum"],
+        #         },
+        #         "white": {
+        #             "red": ["crimson", "orangered", "magenta", "darkred", "firebrick", "maroon", "brown", "indianred"],
+        #             "brown": {
+        #             "red": ["saddlebrown", "sienna", "chocolate"],
+        #             "orange": ["peru", "tan", "burlywood"],
+        #             "pink": ["rosybrown", "lightcoral", "indianred"],
+        #             "yellow": ["gold", "orange", "darkorange"],
+        #             "green": ["olive", "darkolivegreen", "olivedrab"],
+        #         },
+        #             "blue": ["skyblue", "navy", "aqua", "teal", "cyan", "turquoise", "darkturquoise", "lightblue"],
+        #             "purple": ["violet", "indigo", "lavender", "plum", "purple", "darkviolet", "blueviolet"],
+        #             "yellow": ["gold", "orange"]
+        #         },
+        #         "brown": {
+        #             "red": ["saddlebrown", "sienna", "chocolate"],
+        #             "orange": ["peru", "tan", "burlywood"],
+        #             "pink": ["rosybrown", "lightcoral", "indianred"],
+        #             "yellow": ["gold", "orange", "darkorange"],
+        #             "green": ["olive", "darkolivegreen", "olivedrab"],
+        #         },
+        #     }
+        # }
         self.root_color = "gray"
 
     @property

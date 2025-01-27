@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+import cv2
 import numpy as np
 
 from perception.objects.road_info import RoadMarkings, RoadObject
@@ -15,7 +16,7 @@ class PipeData:
     raw_frame: np.array
 
     creation_time: float
-    last_filter_process_name: str
+    last_pipeline_name: str
 
     timing_info: TimingInfo = field(default_factory=TimingInfo)
     processed_frames: dict[str, list[np.array]] = field(default_factory=dict)
@@ -29,16 +30,30 @@ class PipeData:
     pedestrians: list[RoadObject] = None
     horizontal_lines: list[RoadObject] = None
 
-
-    def add_processed_frame(self, frame):
+    def add_processed_frame(self, frame, downscale_factor=2):
         """
-        Add a processed frame to the data.
-        """
-        if self.last_filter_process_name not in self.processed_frames:
-            self.processed_frames[self.last_filter_process_name] = [frame]
-        else:
-            self.processed_frames[self.last_filter_process_name].append(frame)
+        Add a processed frame to the data after downscaling its resolution.
 
+        Parameters:
+        - frame: The image/frame to be processed and added.
+        - downscale_factor (int or float): The factor by which to downscale the frame.
+                                           Must be greater than 1. (1 means no downscaling).
+        """
+        if downscale_factor <= 1:
+            raise ValueError("downscale_factor must be greater than 1.")
+
+        # Downscale the frame if the factor is not 1
+        if downscale_factor > 1:
+            height, width = frame.shape[:2]
+            new_width = int(width / downscale_factor)
+            new_height = int(height / downscale_factor)
+            # Ensure new dimensions are at least 1x1
+            new_width = max(1, new_width)
+            new_height = max(1, new_height)
+            frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+
+        # Add the (possibly downscaled) frame to processed_frames
+        self.processed_frames.setdefault(self.last_pipeline_name, []).append(frame)
 
     def merge(self, new_pipe_data: 'PipeData') -> 'PipeData':
         """
@@ -52,7 +67,7 @@ class PipeData:
             self.frame_version = new_pipe_data.frame_version
             self.raw_frame = new_pipe_data.raw_frame
 
-        self.last_filter_process_name = new_pipe_data.last_filter_process_name
+        self.last_pipeline_name = new_pipe_data.last_pipeline_name
 
         for process_name, frames in new_pipe_data.processed_frames.items():
             self.processed_frames[process_name] = frames
