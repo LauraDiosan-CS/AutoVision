@@ -1,0 +1,3 @@
+[submodule "rs_ipc"]
+	path = rs_ipc
+	url = https://github.com/TheLuckyCoder/rs_ipc

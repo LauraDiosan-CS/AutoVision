@@ -2,14 +2,13 @@ import multiprocessing as mp
 import time
 import pickle
 
+from rs_ipc import SharedMessage, OperationMode, ReaderWaitPolicy
 import numpy as np
 from dataclasses import dataclass
 from datetime import datetime
-from ripc import SharedMessage as SharedMemoryRust, OpenMode
 
 from tests.shm_python_extra_lock import SharedMemory as SharedMemoryPythonWithExtraLock
 from tests.shm_python_full import SharedMemory as SharedMemoryPython
-from ripc import SharedQueue
 
 import polars as pl  # Added Polars import
 
@@ -101,7 +100,7 @@ def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
     """
     Performance test for multiprocessing Queue-based implementation.
     """
-    queue = mp.Queue(maxsize=0)  # maxsize=0 means infinite size
+    queue = mp.Queue(maxsize=10)
     received = mp.Value("b", False)
 
     # Create the writer process
@@ -114,6 +113,7 @@ def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
     for attempt in range(attempts):
         if attempt % 250 == 0:
             print(f"Processing attempt {attempt + 1}/{attempts}...")
+
         # Read serialized data from the queue
         data_bytes = queue.get()  # This will block until data is available
         recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
@@ -136,9 +136,36 @@ def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
     return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
-def ripc_shm_writer_proc(
+def rs_ipc_shm_writer_proc(
+    shm_name,
+    op_mode,
+    attempts,
+    mock_pipe_data,
+):
+    """
+    Child process:
+    Writes MockPipeData objects to shared memory `attempts` times.
+    Waits for the parent to read before writing again.
+    """
+    writer = SharedMessage.open(
+        shm_name,
+        OperationMode.WriteSync if op_mode == "SYNC" else OperationMode.WriteAsync,
+        ReaderWaitPolicy.All(),
+    )
+
+    i = 0
+    while i < attempts:
+        mock_pipe_data.send_time = time.perf_counter()
+        # Serialize MockPipeData and write to shared memory
+        data_serialized = pickle.dumps(mock_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
+        writer.write(data_serialized)
+        i += 1
+
+    writer.stop()
+
+
+def py_ipc_shm_writer_proc(
     shm_impl,
-    shm_impl_name,
     shm_name,
     attempts,
     mock_pipe_data,
@@ -150,119 +177,98 @@ def ripc_shm_writer_proc(
     Writes MockPipeData objects to shared memory `attempts` times.
     Waits for the parent to read before writing again.
     """
-    writer = shm_impl.open(shm_name, mode=OpenMode.WriteOnly)
+    writer = shm_impl.open(shm_name, mode=OperationMode.WriteSync)
     if lock is not None:
         writer._lock = lock
 
     i = 0
     while i < attempts:
         # Wait until the parent has read the last written version
+        mock_pipe_data.send_time = time.perf_counter()
+
         while writer.last_written_version() > last_read_version.value:
             continue
 
-        mock_pipe_data.send_time = time.perf_counter()
-
         # Serialize MockPipeData and write to shared memory
         data_serialized = pickle.dumps(mock_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
         writer.write(data_serialized)
         i += 1
 
     # Ensure all writes are read before exiting
-    time.sleep(0.1)
-    if shm_impl_name != "shm_queue":
-        while writer.last_written_version() != last_read_version.value:
-            time.sleep(0.1)
+    while writer.last_written_version() != last_read_version.value:
+        continue
 
-    try:
-        writer.close()
-        writer.unlink()
-    except Exception as e:
-        pass
+    writer.close()
+    writer.unlink()
 
 
-def ripc_shm_queue_writer_proc(shm_name, attempts, mock_pipe_data, received: mp.Value):
-    """
-    Child process:
-    Writes MockPipeData objects to shared memory `attempts` times.
-    Waits for the parent to read before writing again.
-    """
-    writer = SharedQueue.open(shm_name, mode=OpenMode.WriteOnly)
-
-    i = 0
-    while i < attempts:
-        mock_pipe_data.send_time = time.perf_counter()
-        print(f"Writing {i}th data")
-        # Serialize MockPipeData and write to shared memory
-        data_serialized = pickle.dumps(mock_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
-        writer.write(data_serialized)
-        print(f"Written {i}th data")
-        i += 1
-
-        while not received.value:
-            continue
-        received.value = False
-
-    # Ensure all writes are read before exiting
-    time.sleep(0.1)
-    while not writer.is_closed():
-        time.sleep(0.1)
-
-
-def ripc_shm_queue_perf_test(
-    mock_pipe_data, data_size, attempts, shm_name_base, method="blocking_read"
+def rs_ipc_shm_perf_test(
+    mock_pipe_data,
+    shm_impl_name,
+    writer_op_mode,
+    data_size,
+    attempts,
+    shm_name_base,
+    method="blocking_read",
 ):
-    try:
-        """
-        Runs the performance test using the specified method (`blocking_read` or `try_read`) with the chosen SHM implementation.
-        """
-        shm_name = generate_unique_shm_name(shm_name_base, "shm_queue")
-        reader = SharedQueue.create(
-            shm_name, mode=OpenMode.ReadOnly, max_element_size=data_size
-        )
+    """
+    Runs the performance test using the specified method (`blocking_read` or `try_read`) with the chosen SHM implementation.
+    """
+    shm_size = int(data_size * 11 / 10)
+    shm_name = generate_unique_shm_name(shm_name_base, shm_impl_name)
 
-        received = mp.Value("b", False)
+    last_read_version = mp.Value("i", 0)
 
-        # Start the writer process
-        writer_proc = mp.Process(
-            target=ripc_shm_queue_writer_proc,
-            args=(shm_name, attempts, mock_pipe_data, received),
-        )
-        writer_proc.start()
+    # Create SharedMemoryReader
+    reader = SharedMessage.create(
+        shm_name, shm_size, OperationMode.ReadSync, ReaderWaitPolicy.All()
+    )
 
-        total_duration = 0.0
-        for attempt in range(attempts):
-            if attempt % 1 == 0:
-                print(f"Processing attempt {attempt + 1}/{attempts}...")
+    # Start the writer process
+    writer_proc = mp.Process(
+        target=rs_ipc_shm_writer_proc,
+        args=(
+            shm_name,
+            "SYNC" if writer_op_mode == OperationMode.WriteSync else "ASYNC",
+            attempts,
+            mock_pipe_data,
+        ),
+    )
+    writer_proc.start()
 
-            if method == "blocking_read":
-                data_bytes = reader.blocking_read()
-            elif method == "try_read":
-                data_bytes = None
-                while data_bytes is None and not reader.is_closed():
-                    data_bytes = reader.try_read()
-            else:
-                raise ValueError(f"Unknown method: {method}")
+    total_duration = 0.0
+    for attempt in range(attempts):
+        if attempt % 250 == 0:
+            print(f"Processing attempt {attempt + 1}/{attempts}...")
 
-            received.value = True
+        if method == "blocking_read":
+            data_bytes = reader.read(block=True)
+        elif method == "try_read":
+            data_bytes = None
+            while data_bytes is None and not reader.is_stopped():
+                data_bytes = reader.read(block=False)
+        else:
+            raise ValueError(f"Unknown method: {method}")
 
-            if data_bytes is not None:
-                recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
-                total_duration += time.perf_counter() - recv_pipe_data.send_time
+        if data_bytes is not None:
+            last_read_version.value = reader.last_read_version()
 
-                assert recv_pipe_data.data.size == data_size
-                assert np.array_equal(mock_pipe_data.data, recv_pipe_data.data)
+            recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
 
-            writer_proc.join()
+            total_duration += time.perf_counter() - recv_pipe_data.send_time
 
-            avg_duration_ms = (
-                total_duration / attempts
-            ) * 1000  # Convert average to milliseconds
-            return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
-    except Exception as e:
-        print(e)
+            assert recv_pipe_data.data.size == data_size
+            assert np.array_equal(mock_pipe_data.data, recv_pipe_data.data)
+
+    writer_proc.join()
+
+    avg_duration_ms = (
+        total_duration / attempts
+    ) * 1000  # Convert average to milliseconds
+    return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
-def ripc_shm_perf_test(
+def py_ipc_shm_perf_test(
     mock_pipe_data,
     shm_impl_name,
     data_size,
@@ -273,26 +279,28 @@ def ripc_shm_perf_test(
     """
     Runs the performance test using the specified method (`blocking_read` or `try_read`) with the chosen SHM implementation.
     """
-    shm_size = data_size * 3 // 2
+    shm_size = int(data_size * 11 / 10)
     shm_name = generate_unique_shm_name(shm_name_base, shm_impl_name)
-    shm_impl = select_ipc_implementation(shm_impl_name)
 
     last_read_version = mp.Value("i", 0)
 
-    # Create SharedMemoryReader
-    reader = shm_impl.create(shm_name, shm_size, mode=OpenMode.ReadOnly)
+    if shm_impl_name == "shm_lock":
+        shm_impl = SharedMemoryPythonWithExtraLock
+    else:
+        shm_impl = SharedMemoryPython
 
+    # Create SharedMemoryReader
+    reader = shm_impl.create(shm_name, shm_size, mode=OperationMode.ReadSync)
+
+    lock = None
     if shm_impl_name == "shm_lock":
         lock = reader._lock
-    else:
-        lock = None
 
     # Start the writer process
     writer_proc = mp.Process(
-        target=ripc_shm_writer_proc,
+        target=py_ipc_shm_writer_proc,
         args=(
             shm_impl,
-            shm_impl_name,
             shm_name,
             attempts,
             mock_pipe_data,
@@ -318,6 +326,7 @@ def ripc_shm_perf_test(
 
         if data_bytes is not None:
             last_read_version.value = reader.last_read_version()
+
             recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
 
             total_duration += time.perf_counter() - recv_pipe_data.send_time
@@ -325,12 +334,12 @@ def ripc_shm_perf_test(
             assert recv_pipe_data.data.size == data_size
             assert np.array_equal(mock_pipe_data.data, recv_pipe_data.data)
 
-        writer_proc.join()
+    writer_proc.join()
 
-        avg_duration_ms = (
-            total_duration / attempts
-        ) * 1000  # Convert average to milliseconds
-        return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
+    avg_duration_ms = (
+        total_duration / attempts
+    ) * 1000  # Convert average to milliseconds
+    return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
 def compare_methods(test_cases, ipc_to_test, size_multiplier, attempts=500):
@@ -385,18 +394,21 @@ def compare_methods(test_cases, ipc_to_test, size_multiplier, attempts=500):
                 result[f"{ipc_name} Try Total (s)"] = -1.0
                 continue
 
-            if ipc_name == "shm_queue":
+            # For SHM implementations
+            if ipc_name == "shm_lock" or ipc_name == "shm_pth":
                 blocking_total, blocking_avg, data_size_human_readable = (
-                    ripc_shm_queue_perf_test(
+                    py_ipc_shm_perf_test(
                         mock_pipe_data,
+                        ipc_name,
                         data_size,
                         attempts,
                         test_case["shm_name"],
                         method="blocking_read",
                     )
                 )
-                try_read_total, try_read_avg, _ = ripc_shm_queue_perf_test(
+                try_read_total, try_read_avg, _ = py_ipc_shm_perf_test(
                     mock_pipe_data,
+                    ipc_name,
                     data_size,
                     attempts,
                     test_case["shm_name"],
@@ -409,18 +421,22 @@ def compare_methods(test_cases, ipc_to_test, size_multiplier, attempts=500):
                 result[f"{ipc_name} Try Total (s)"] = try_read_total
                 continue
 
-            # For SHM implementations
-            blocking_total, blocking_avg, data_size_human_readable = ripc_shm_perf_test(
-                mock_pipe_data,
-                ipc_name,
-                data_size,
-                attempts,
-                test_case["shm_name"],
-                method="blocking_read",
+            writer_op_mode = OperationMode.WriteAsync
+            blocking_total, blocking_avg, data_size_human_readable = (
+                rs_ipc_shm_perf_test(
+                    mock_pipe_data,
+                    ipc_name,
+                    writer_op_mode,
+                    data_size,
+                    attempts,
+                    test_case["shm_name"],
+                    method="blocking_read",
+                )
             )
-            try_read_total, try_read_avg, _ = ripc_shm_perf_test(
+            try_read_total, try_read_avg, _ = rs_ipc_shm_perf_test(
                 mock_pipe_data,
                 ipc_name,
+                writer_op_mode,
                 data_size,
                 attempts,
                 test_case["shm_name"],
@@ -437,45 +453,29 @@ def compare_methods(test_cases, ipc_to_test, size_multiplier, attempts=500):
     return results
 
 
-def select_ipc_implementation(implementation: str):
-    """
-    Select the shared memory implementation based on the provided name.
-    """
-    if implementation == "shm_ripc":
-        return SharedMemoryRust
-    elif implementation == "shm_lock":
-        return SharedMemoryPythonWithExtraLock
-    elif implementation == "shm_pth":
-        return SharedMemoryPython
-    elif implementation == "shm_queue":
-        return SharedQueue
-    else:
-        raise ValueError(f"Unknown SHM implementation: {implementation}")
-
-
 if __name__ == "__main__":
     mp.set_start_method("spawn")
 
     # Define test cases
     test_cases = [
+        {"width": 256, "height": 256, "bpp": 3, "shm_name": "/shm_256x256"},
+        {"width": 512, "height": 512, "bpp": 3, "shm_name": "/shm_512x512"},
         {"width": 640, "height": 480, "bpp": 3, "shm_name": "/shm_640x480"},
         {"width": 1280, "height": 720, "bpp": 3, "shm_name": "/shm_1280x720"},
         {"width": 1920, "height": 1080, "bpp": 3, "shm_name": "/shm_1920x1080"},
-        {"width": 3840, "height": 2160, "bpp": 3, "shm_name": "/shm_3840x2160"},
     ]
 
     # Shared memory implementations to test
     ipc_to_test = [
-        "shm_queue",
         "mp_pipe",
-        "shm_ripc",
+        # "mp_queue",
         "shm_lock",
         "shm_pth",
-        "mp_queue",
+        "shm_rs",
     ]
 
     size_multiplier = 3
-    attempts = 5000
+    attempts = 100000
 
     results = compare_methods(
         test_cases, ipc_to_test, size_multiplier, attempts=attempts

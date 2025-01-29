@@ -4,7 +4,7 @@ import time
 
 import torch.multiprocessing as mp
 import urllib3
-from ripc import SharedMessage
+from rs_ipc.rs_ipc import SharedMessage, OperationMode
 
 from configuration.config import Config
 from control.pid_controller import PIDController
@@ -25,10 +25,12 @@ class Controller(mp.Process):
             behaviour_planner = BehaviourPlanner()
             self.http_pool = urllib3.PoolManager()
             self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
-            memory_reader = SharedMessage.open(Config.control_loop_memory_name)
+            memory_reader: SharedMessage = SharedMessage.open(
+                Config.control_loop_memory_name, OperationMode.ReadSync
+            )
 
             while self.keep_running:
-                pipe_data_bytes = memory_reader.blocking_read()
+                pipe_data_bytes = memory_reader.read(block=True)
                 if pipe_data_bytes is None:
                     break
 
@@ -36,17 +38,19 @@ class Controller(mp.Process):
 
                 # Perform behavior planning based on processed data
                 behaviour = behaviour_planner.run_iteration(
-                        traffic_signs=pipe_data.traffic_signs,
-                        traffic_lights=pipe_data.traffic_lights,
-                        pedestrians=pipe_data.pedestrians,
-                        horizontal_lines=pipe_data.horizontal_lines
-                    )
+                    traffic_signs=pipe_data.traffic_signs,
+                    traffic_lights=pipe_data.traffic_lights,
+                    pedestrians=pipe_data.pedestrians,
+                    horizontal_lines=pipe_data.horizontal_lines,
+                )
 
-                normalized_steering_angle = self.compute_normalized_steering_angle(pipe_data.heading_error_degrees, pipe_data.lateral_offset)
+                normalized_steering_angle = self.compute_normalized_steering_angle(
+                    pipe_data.heading_error_degrees, pipe_data.lateral_offset
+                )
 
-
-
-                self.handle_http_communication(behaviour, pipe_data.heading_error_degrees, pipe_data.lateral_offset)
+                self.handle_http_communication(
+                    behaviour, pipe_data.heading_error_degrees, pipe_data.lateral_offset
+                )
         except Exception as e:
             print(f"[Controller] Error: {e}")
             self.keep_running.value = False
@@ -67,27 +71,38 @@ class Controller(mp.Process):
         # Correct the heading error based on the lateral offset
         # positive value means car is on the right side of the road
         # corrected_heading_error = w1 * heading_error + w2 * lateral_offset
-        corrected_normalized_heading_error = HEADING_ERROR_WEIGHT * normalized_heading_error + LATERAL_ERROR_WEIGHT * normalized_lateral_offset
+        corrected_normalized_heading_error = (
+            HEADING_ERROR_WEIGHT * normalized_heading_error
+            + LATERAL_ERROR_WEIGHT * normalized_lateral_offset
+        )
 
         # Increase/Decrease Normalized Steering Angle in proportion to the Normalized Heading Error
-        normalized_steering_angle = self.steering_pid.compute(corrected_normalized_heading_error)
+        normalized_steering_angle = self.steering_pid.compute(
+            corrected_normalized_heading_error
+        )
 
         return normalized_steering_angle
 
-
     def handle_http_communication(self, behaviour, heading_error, lateral_offset):
-        if Config.command_url and self.http_connection_failed_count < Config.http_connection_failed_limit:
+        if (
+            Config.command_url
+            and self.http_connection_failed_count < Config.http_connection_failed_limit
+        ):
             print(f"Sending command to car")
             try:
-                json_data = {"behaviour": behaviour,
-                             "heading_error_degrees": heading_error,
-                             "lateral_error": lateral_offset,
-                             }
+                json_data = {
+                    "behaviour": behaviour,
+                    "heading_error_degrees": heading_error,
+                    "lateral_error": lateral_offset,
+                }
                 start_time = time.time()
-                r = self.http_pool.request('POST', Config.command_url,
-                                           headers={'Content-Type': 'application/json'},
-                                           body=json.dumps(json_data),
-                                           timeout=Config.http_timeout)
+                r = self.http_pool.request(
+                    "POST",
+                    Config.command_url,
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps(json_data),
+                    timeout=Config.http_timeout,
+                )
                 end_time = time.time()
                 print(f"Http success execution time: {end_time - start_time} seconds")
             except Exception as e:

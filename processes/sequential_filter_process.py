@@ -4,7 +4,7 @@ import numpy as np
 
 import multiprocessing as mp
 
-from ripc import SharedMessage, OpenMode
+from rs_ipc import ReaderWaitPolicy, SharedMessage, OperationMode
 
 from configuration.config import Config
 from perception.filters.base_filter import BaseFilter
@@ -13,22 +13,38 @@ from processes.controlled_process import ControlledProcess
 
 
 class SequentialFilterProcess(ControlledProcess):
-    __slots__ = ['filters', 'keep_running', 'last_processed_frame_version', 'artificial_delay']
+    __slots__ = [
+        "filters",
+        "keep_running",
+        "last_processed_frame_version",
+        "artificial_delay",
+    ]
 
-    def __init__(self, filters: list[BaseFilter], keep_running: mp.Value, debug_pipe: mp.Pipe,
-                 last_processed_frame_version: mp.Value, artificial_delay: float = 0.0,
-                 program_start_time: float = 0.0, process_name: str = None):
+    def __init__(
+        self,
+        filters: list[BaseFilter],
+        keep_running: mp.Value,
+        debug_pipe: mp.Pipe,
+        artificial_delay: float = 0.0,
+        program_start_time: float = 0.0,
+        process_name: str = None,
+    ):
         super().__init__(name=process_name, program_start_time=program_start_time)
         self.filters = filters
         self.keep_running = keep_running
-        self.last_processed_frame_version = last_processed_frame_version
         self.debug_pipe = debug_pipe
         self.artificial_delay = artificial_delay
 
     def run(self):
         try:
-            pipeline_shm = SharedMessage.open(Config.shm_base_name + self.name, mode=OpenMode.WriteOnly)
-            video_feed_shm = SharedMessage.open(Config.video_feed_memory_name, mode=OpenMode.ReadOnly)
+            pipeline_shm = SharedMessage.open(
+                Config.shm_base_name + self.name,
+                OperationMode.WriteSync,
+                ReaderWaitPolicy.Count(0),
+            )
+            video_feed_shm: SharedMessage = SharedMessage.open(
+                Config.video_feed_memory_name, OperationMode.ReadSync
+            )
 
             processed_frame_indexes = []
 
@@ -36,21 +52,26 @@ class SequentialFilterProcess(ControlledProcess):
             pd = f"Process Data {self.name[0]}"
             tf = f"Transfer Data {self.name[0]}"
             while self.keep_running.value:
-                frame_as_bytes = video_feed_shm.blocking_read()
+                frame_as_bytes = video_feed_shm.read(block=True)
 
-                if frame_as_bytes is None: # End of video
+                if frame_as_bytes is None:  # End of video
                     break
 
-                self.last_processed_frame_version.value = video_feed_shm.last_read_version()
-                processed_frame_indexes.append(self.last_processed_frame_version.value)
+                frame_version = video_feed_shm.last_read_version()
 
-                frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape((Config.height, Config.width, 3))
-                data = PipeData(frame=frame,
-                                frame_version=video_feed_shm.last_read_version(),
-                                depth_frame=None, # currently only available in real-time mode
-                                raw_frame=frame,
-                                creation_time=time.perf_counter(),
-                                last_pipeline_name=self.name)
+                processed_frame_indexes.append(frame_version)
+
+                frame = np.frombuffer(frame_as_bytes, dtype=np.uint8).reshape(
+                    (Config.height, Config.width, 3)
+                )
+                data = PipeData(
+                    frame=frame,
+                    frame_version=frame_version,
+                    depth_frame=None,  # currently only available in real-time mode
+                    raw_frame=frame,
+                    creation_time=time.perf_counter(),
+                    last_pipeline_name=self.name,
+                )
 
                 data.timing_info.start(dl)
                 data.timing_info.start(pd, parent=dl)
@@ -69,7 +90,7 @@ class SequentialFilterProcess(ControlledProcess):
 
                 del data
 
-            pipeline_shm.close()
+            pipeline_shm.stop()
 
             self.debug_pipe.send(processed_frame_indexes)
             self.debug_pipe.close()

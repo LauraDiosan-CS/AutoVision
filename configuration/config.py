@@ -7,7 +7,7 @@ class VisualizationStrategy(Enum):
     NEWEST_FRAME = 2
 
 
-class MultiprocessingStrategy(Enum):
+class MPStrategy(Enum):
     LIVE = 1
     ALL_FRAMES_FASTEST_PROCESS = 2
     ALL_FRAMES_ALL_PROCESSES = 3
@@ -15,14 +15,16 @@ class MultiprocessingStrategy(Enum):
 
 class Config:
     # Directories
-    models_dir_path = 'configuration/models/'
-    perception_config_dir = 'configuration/perception_config/'
-    videos_dir = 'files/videos'
-    recordings_dir = 'files/recordings'
+    models_dir_path = "configuration/models/"
+    perception_config_dir = "configuration/perception_config/"
+    videos_dir = "files/videos"
+    recordings_dir = "files/recordings"
 
     # Config Files
-    pipeline_config_path = os.path.join(perception_config_dir, 'benchmark_pipeline.json')
-    roi_config_path = os.path.join(perception_config_dir, 'roi.json')
+    pipeline_config_path = os.path.join(
+        perception_config_dir, "benchmark_pipeline.json"
+    )
+    roi_config_path = os.path.join(perception_config_dir, "roi.json")
 
     # Video to process
     video_name = "Raw_Car_Pov_Final.mp4"
@@ -40,15 +42,18 @@ class Config:
     save_processed_video = True
     enable_pipeline_visualization = False
     visualizer_strategy = VisualizationStrategy.NEWEST_FRAME
-    mp_strategy = MultiprocessingStrategy.ALL_FRAMES_FASTEST_PROCESS
+    mp_strategy = MPStrategy.ALL_FRAMES_FASTEST_PROCESS
 
     # Shared Memory Config
     frame_size = width * height * color_channels
-    max_pipe_data_size = frame_size * 10 # approximation
+    max_pipe_data_size = frame_size * 10  # approximation
 
-    assert visualizer_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024, "Visualizer queue size is too big"
-    assert save_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024, "Save queue size is too big"
-
+    assert (
+        visualizer_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024
+    ), "Visualizer queue size is too big"
+    assert (
+        save_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024
+    ), "Save queue size is too big"
 
     # Shared Memory Names
     shm_base_name = "CAR_VISION_SHM_"
@@ -68,29 +73,40 @@ class Config:
     @classmethod
     def as_json(cls):
         import json
-        relevant_keys = ['video_name', 'width', 'height', 'camera_fps', 'approx_max_pipe_data_size_multiplier',
-                         'visualizer_queue_element_count', 'save_queue_element_count',
-                         'visualizer_strategy', 'mp_strategy']
+
+        relevant_keys = [
+            "video_name",
+            "width",
+            "height",
+            "camera_fps",
+            "approx_max_pipe_data_size_multiplier",
+            "visualizer_queue_element_count",
+            "save_queue_element_count",
+            "visualizer_strategy",
+            "mp_strategy",
+        ]
 
         config_data = {
             k: v.name if isinstance(v, Enum) else v
             for k, v in cls.__dict__.items()
-            if not k.startswith('__') and not callable(v) and not isinstance(v, classmethod) and k in relevant_keys
+            if not k.startswith("__")
+            and not callable(v)
+            and not isinstance(v, classmethod)
+            and k in relevant_keys
         }
 
-        with open(cls.pipeline_config_path, 'r') as f:
+        with open(cls.pipeline_config_path, "r") as f:
             pipeline_config = json.load(f)
 
-        with open(cls.roi_config_path, 'r') as f:
+        with open(cls.roi_config_path, "r") as f:
             roi_config = json.load(f)
 
-        config_data['config_files'] = {
-            'pipeline_config': pipeline_config,
+        config_data["config_files"] = {
+            "pipeline_config": pipeline_config,
             # 'roi_config': roi_config # Too messy to include
         }
 
         return json.dumps(config_data, indent=4)
-
 
 
 if __name__ == "__main__":

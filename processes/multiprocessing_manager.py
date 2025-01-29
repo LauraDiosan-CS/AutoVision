@@ -1,11 +1,15 @@
-import ctypes
 import multiprocessing as mp
 import os
 import pickle
 import time
 
-import ripc
-from ripc import SharedMessage, SharedQueue, OpenMode
+from rs_ipc import (
+    SharedMessage,
+    OperationMode,
+    ReaderWaitPolicy,
+    read_all,
+    read_all_map,
+)
 
 from configuration.config import Config
 from control.controller import Controller
@@ -19,9 +23,16 @@ from processes.video_writer_process import VideoWriterProcess
 
 
 class MultiProcessingManager(ControlledProcess):
-    __slots__ = ['keep_running', 'start_video', 'recording_dir_path']
+    __slots__ = ["keep_running", "start_video", "recording_dir_path"]
 
-    def __init__(self, program_start_time: float, keep_running: mp.Value, start_video: mp.Value, recording_dir_path: str, name=None):
+    def __init__(
+        self,
+        program_start_time: float,
+        keep_running: mp.Value,
+        start_video: mp.Value,
+        recording_dir_path: str,
+        name=None,
+    ):
         super().__init__(name=name, program_start_time=program_start_time)
         self.keep_running = keep_running
         self.start_video = start_video
@@ -29,44 +40,65 @@ class MultiProcessingManager(ControlledProcess):
 
     def run(self):
         try:
-            video_feed_shm = SharedMessage.create(name=Config.video_feed_memory_name, size=Config.frame_size)
-            control_loop_shm = SharedMessage.create(name=Config.control_loop_memory_name,
-                                                   size=Config.max_pipe_data_size)
-            visualization_shm = SharedMessage.open(Config.visualization_memory_name, mode=OpenMode.WriteOnly)
+            video_feed_shm = SharedMessage.create(
+                name=Config.video_feed_memory_name,
+                size=Config.frame_size,
+                mode=OperationMode.CreateOnly,
+            )
+            control_loop_shm = SharedMessage.create(
+                name=Config.control_loop_memory_name,
+                size=Config.max_pipe_data_size,
+                mode=OperationMode.WriteAsync,
+            )
+            visualization_shm = SharedMessage.open(
+                Config.visualization_memory_name, mode=OperationMode.WriteAsync
+            )
 
             save_shm_queue = None
             video_writer_process = None
             if Config.save_processed_video:
-                save_shm_queue = SharedQueue.create(Config.save_final_memory_name, Config.max_pipe_data_size, OpenMode.WriteOnly)
+                save_shm_queue = SharedMessage.create(
+                    Config.save_final_memory_name,
+                    Config.max_pipe_data_size,
+                    OperationMode.WriteAsync,
+                    ReaderWaitPolicy.All(),
+                )  # ReadAsync will make it operate like a queue, as long as the writer side has ReaderWaitPolicy active
 
                 video_name = os.path.splitext(Config.video_name)[0]
 
                 save_info = SaveInfo(
-                    video_path=os.path.join(self.recording_dir_path,
-                                            f"Final_{video_name}.mp4"),
+                    video_path=os.path.join(
+                        self.recording_dir_path, f"Final_{video_name}.mp4"
+                    ),
                     width=Config.width,
                     height=Config.height,
-                    fps=Config.output_fps
+                    fps=Config.output_fps,
                 )
 
-                video_writer_process = VideoWriterProcess(save_info=save_info,
-                                                          shared_memory_name=Config.save_final_memory_name,
-                                                          keep_running=self.keep_running,
-                                                          program_start_time=self.program_start_time,
-                                                            name="VideoWriterProcess")
+                video_writer_process = VideoWriterProcess(
+                    save_info=save_info,
+                    shared_memory_name=Config.save_final_memory_name,
+                    keep_running=self.keep_running,
+                    program_start_time=self.program_start_time,
+                    name="VideoWriterProcess",
+                )
                 video_writer_process.start()
 
             pipelines, _, _ = initialize_config(Config.enable_pipeline_visualization)
 
             pipeline_processes: list[tuple[mp.Process, mp.Pipe]] = []
-            last_read_frame_versions = []
             pipeline_shm_list = []
 
-            for (index, pipeline) in enumerate(pipelines):
-                last_read_frame_versions.append(mp.Value(ctypes.c_int, 0))
-                pipeline_shm_list.append(SharedMessage.create(name=Config.shm_base_name + pipeline.name, size=Config.max_pipe_data_size))
+            for index, pipeline in enumerate(pipelines):
+                pipeline_shm_list.append(
+                    SharedMessage.create(
+                        Config.shm_base_name + pipeline.name,
+                        Config.max_pipe_data_size,
+                        OperationMode.ReadSync,
+                    )
+                )
 
-                pipe, child_pipe = mp.Pipe()
+                debug_pipe, child_debug_pipe = mp.Pipe()
 
                 match pipeline.name:
                     case "LaneDetection":
@@ -79,21 +111,25 @@ class MultiProcessingManager(ControlledProcess):
                         artificial_delay = 0.2
                 artificial_delay = 0.0
 
-                process = SequentialFilterProcess(filters=pipeline.filters,
-                                                  keep_running=self.keep_running,
-                                                  last_processed_frame_version=last_read_frame_versions[index],
-                                                  debug_pipe=child_pipe,
-                                                  artificial_delay=artificial_delay,
-                                                  process_name=pipeline.name,
-                                                  program_start_time=self.program_start_time)
+                process = SequentialFilterProcess(
+                    filters=pipeline.filters,
+                    keep_running=self.keep_running,
+                    debug_pipe=child_debug_pipe,
+                    artificial_delay=artificial_delay,
+                    process_name=pipeline.name,
+                    program_start_time=self.program_start_time,
+                )
 
                 process.start()
-                pipeline_processes.append((process, pipe))
+                pipeline_processes.append((process, debug_pipe))
             print("[MPManager] All parallel processes started")
 
-            camera_process = MockCameraProcess(start_video=self.start_video, keep_running=self.keep_running,
-                                               last_read_frame_versions=last_read_frame_versions,
-                                               program_start_time=self.program_start_time, name="CameraProcess")
+            camera_process = MockCameraProcess(
+                start_video=self.start_video,
+                keep_running=self.keep_running,
+                program_start_time=self.program_start_time,
+                name="CameraProcess",
+            )
             camera_process.start()
             print("[MPManager] CameraProcess started")
 
@@ -103,24 +139,26 @@ class MultiProcessingManager(ControlledProcess):
 
             print("[MPManager] Setup finished")
 
-            current_pipe_data = PipeData(frame=None, frame_version=-1, depth_frame=None,
-                                         last_pipeline_name="None", creation_time=time.time(), raw_frame=None)
+            current_pipe_data = PipeData(
+                frame=None,
+                frame_version=-1,
+                depth_frame=None,
+                last_pipeline_name="None",
+                creation_time=time.time(),
+                raw_frame=None,
+            )
 
             current_pipe_data.timing_info.start("Process Video")
-            self.start_video.value = True # All Setup finished allow the video reader to start
+            self.start_video.value = (
+                True  # All Setup finished allow the video reader to start
+            )
             write_count = 0
             while self.keep_running.value:
-                start_time = time.perf_counter()
-                pipe_data_list: list[PipeData | None] = ripc.read_all_map(pipeline_shm_list, deserialize_pipe_data)
-                time_to_load = (time.perf_counter() - start_time) * 1000
-                # pipe_data_bytes_list = ripc.read_all(pipeline_shm_list)
-                # for pipe_data_bytes in pipe_data_bytes_list:
+                pipe_data_list: list[PipeData | None] = read_all_map(
+                    pipeline_shm_list, deserialize_pipe_data
+                )
                 for new_pipe_data in pipe_data_list:
-                    if new_pipe_data:
-                        # start_time = time.perf_counter()
-                        # new_pipe_data: PipeData = pickle.loads(pipe_data_bytes)
-                        # time_to_load = (time.perf_counter() - start_time) * 1000
-
+                    if new_pipe_data is not None:
                         dl = f"Data Lifecycle {new_pipe_data.last_pipeline_name[0]}"
                         tf1 = f"Transfer Data {new_pipe_data.last_pipeline_name[0]}"
                         md = f"Merge Data {new_pipe_data.last_pipeline_name[0]}"
@@ -135,36 +173,38 @@ class MultiProcessingManager(ControlledProcess):
                         current_pipe_data.timing_info.start(tf2, dl)
 
                         start_time = time.perf_counter()
-                        pickled_pipe_data = pickle.dumps(current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
+                        pickled_pipe_data = pickle.dumps(
+                            current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL
+                        )
                         time_to_pickle = (time.perf_counter() - start_time) * 1000
-
                         start_time = time.perf_counter()
-                        visualization_shm.write_async(pickled_pipe_data)
-                        control_loop_shm.write_async(pickled_pipe_data)
+                        visualization_shm.write(pickled_pipe_data)
+                        control_loop_shm.write(pickled_pipe_data)
                         time_to_write = (time.perf_counter() - start_time) * 1000
 
                         if Config.save_processed_video and save_shm_queue is not None:
                             start_time = time.perf_counter()
                             save_shm_queue.write(pickled_pipe_data)
                             write_count += 1
-                            time_to_write_save_queue = (time.perf_counter() - start_time) * 1000
-                            print(f"[MP Manager] Wrote {write_count} elements to save queue")
+                            time_to_write_save_queue = (
+                                time.perf_counter() - start_time
+                            ) * 1000
 
-                        print(f"[MP Manager] Time to load: {time_to_load:.2f} ms, Time to pickle: {time_to_pickle:.2f} ms, "
-                              f"Time to write: {time_to_write:.2f} ms, Time to write save queue: {time_to_write_save_queue:.2f} ms")
+                        # print(
+                        #     f"[MP Manager] Time to load: {time_to_load:.2f} ms, Time to pickle: {time_to_pickle:.2f} ms, "
+                        #     f"Time to write: {time_to_write:.2f} ms, Time to write save queue: {time_to_write_save_queue:.2f} ms"
+                        # )
 
                         current_pipe_data.timing_info.remove_recursive(dl)
 
                         del new_pipe_data
-
-            control_loop_shm.close()
-            video_feed_shm.close()
-            visualization_shm.close()
+                        print("Deleted new_pipe_data")
+            print("[MPManager] Exiting main loop")
+            control_loop_shm.stop()
+            video_feed_shm.stop()
+            visualization_shm.stop()
             if save_shm_queue:
-                save_shm_queue.close()
-
-            for pipeline_shm in pipeline_shm_list:
-                pipeline_shm.close()
+                save_shm_queue.stop()
 
             print("[MPManager] Joining ControllerProcess")
             controller_process.join()
@@ -185,7 +225,9 @@ class MultiProcessingManager(ControlledProcess):
                 try:
                     processed_frame_indexes = debug_pipe.recv()
                     frames_indexes_dict[process.name] = processed_frame_indexes
-                    print(f"[MPManager] {process.name} processed frame indexes: {processed_frame_indexes}")
+                    print(
+                        f"[MPManager] {process.name} processed frame indexes: {processed_frame_indexes}"
+                    )
                 except EOFError:
                     print(f"[MPManager] Error: {process.name} debug pipe is closed")
                 finally:
@@ -212,21 +254,29 @@ def visualize_frame_indexes(frame_indexes_dict):
     plt.figure(figsize=(15, 8))
 
     # Assign unique y-values for each detection type
-    y_values = {detection: idx for idx, detection in enumerate(frame_indexes_dict.keys(), start=1)}
+    y_values = {
+        detection: idx
+        for idx, detection in enumerate(frame_indexes_dict.keys(), start=1)
+    }
 
     for detection, indexes in frame_indexes_dict.items():
-        plt.scatter(indexes, [y_values[detection]] * len(indexes),
-                    label=detection, alpha=0.6, marker='o')
+        plt.scatter(
+            indexes,
+            [y_values[detection]] * len(indexes),
+            label=detection,
+            alpha=0.6,
+            marker="o",
+        )
 
     # Setting y-axis labels
     plt.yticks(list(y_values.values()), list(y_values.keys()))
 
     # Adding labels and title
-    plt.xlabel('Frame Index')
-    plt.title('Processed Frame Indexes per Detection Type')
+    plt.xlabel("Frame Index")
+    plt.title("Processed Frame Indexes per Detection Type")
 
     # Adding a legend
-    plt.legend(loc='upper right')
+    plt.legend(loc="upper right")
 
     # Optional: Improve layout
     plt.tight_layout()
@@ -243,26 +293,30 @@ def visualize_cumulative_detections(frame_indexes_dict):
         cumulative_counts = np.arange(1, len(sorted_indexes) + 1)
         plt.plot(sorted_indexes, cumulative_counts, label=detection)
 
-    plt.xlabel('Frame Index')
-    plt.ylabel('Cumulative Count')
-    plt.title('Cumulative Processed Frame Indexes per Detection Type')
-    plt.legend(loc='upper left')
+    plt.xlabel("Frame Index")
+    plt.ylabel("Cumulative Count")
+    plt.title("Cumulative Processed Frame Indexes per Detection Type")
+    plt.legend(loc="upper left")
     plt.grid(True)
     plt.tight_layout()
     plt.show()
 
 
-def deserialize_pipe_data(pipe_data_bytes: bytes) -> PipeData | None:
+def deserialize_pipe_data(pipe_data_bytes: bytes) -> PipeData:
     pipe_data = pickle.loads(pipe_data_bytes)
-    pipe_data.timing_info.stop(f"Transfer Data {pipe_data.last_pipeline_name[0]}") if pipe_data else None
+    pipe_data.timing_info.stop(f"Transfer Data {pipe_data.last_pipeline_name[0]}")
+    print(f"Deserialized {pipe_data.last_pipeline_name[0]}, stopping transfer data")
     return pipe_data
+
 
 def visualize_heatmap(frame_indexes_dict):
     # Determine the maximum frame index to define the range
     max_frame = max(max(indexes) for indexes in frame_indexes_dict.values())
 
     # Initialize a DataFrame with zeros
-    df = pd.DataFrame(0, index=range(1, max_frame + 1), columns=frame_indexes_dict.keys())
+    df = pd.DataFrame(
+        0, index=range(1, max_frame + 1), columns=frame_indexes_dict.keys()
+    )
 
     # Populate the DataFrame
     for detection, indexes in frame_indexes_dict.items():
@@ -270,9 +324,9 @@ def visualize_heatmap(frame_indexes_dict):
 
     # Plot heatmap
     plt.figure(figsize=(15, 10))
-    sns.heatmap(df, cmap='YlGnBu', cbar=False)
-    plt.xlabel('Detection Type')
-    plt.ylabel('Frame Index')
-    plt.title('Heatmap of Processed Frame Indexes per Detection Type')
+    sns.heatmap(df, cmap="YlGnBu", cbar=False)
+    plt.xlabel("Detection Type")
+    plt.ylabel("Frame Index")
+    plt.title("Heatmap of Processed Frame Indexes per Detection Type")
     plt.tight_layout()
     plt.show()

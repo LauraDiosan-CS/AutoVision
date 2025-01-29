@@ -26,19 +26,6 @@
         }
     },
     {
-        "name": "PedestrianDetection",
-        "filters": {
-            "roi": {
-                "roi_type": "pedestrians",
-                "visualize": false
-            },
-            "pedestrian_detect": {
-                "model": "best_pedestrian.pt",
-                "visualize": true
-            }
-        }
-    },
-    {
         "name": "LaneDetection",
         "filters": {
             "roi": {
