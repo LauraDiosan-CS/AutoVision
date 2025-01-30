@@ -4,7 +4,7 @@ import time
 
 import torch.multiprocessing as mp
 import urllib3
-from rs_ipc.rs_ipc import SharedMessage, OperationMode
+from rs_ipc import SharedMessage, OperationMode
 
 from configuration.config import Config
 from control.pid_controller import PIDController
@@ -12,7 +12,7 @@ from perception.objects.pipe_data import PipeData
 from planning.behaviour_planner import BehaviourPlanner
 
 
-class Controller(mp.Process):
+class Control(mp.Process):
     def __init__(self, keep_running: mp.Value):
         super().__init__()
         self.http_connection_failed_count = 0
@@ -26,7 +26,7 @@ class Controller(mp.Process):
             self.http_pool = urllib3.PoolManager()
             self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
             memory_reader: SharedMessage = SharedMessage.open(
-                Config.control_loop_memory_name, OperationMode.ReadSync
+                Config.control_loop_memory_name, OperationMode.ReadSync()
             )
 
             while self.keep_running:

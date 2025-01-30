@@ -9,10 +9,9 @@ from rs_ipc import ReaderWaitPolicy, SharedMessage, OperationMode
 from configuration.config import Config
 from perception.filters.base_filter import BaseFilter
 from perception.objects.pipe_data import PipeData
-from processes.controlled_process import ControlledProcess
 
 
-class SequentialFilterProcess(ControlledProcess):
+class SequentialFilterProcess(mp.Process):
     __slots__ = [
         "filters",
         "keep_running",
@@ -29,21 +28,21 @@ class SequentialFilterProcess(ControlledProcess):
         program_start_time: float = 0.0,
         process_name: str = None,
     ):
-        super().__init__(name=process_name, program_start_time=program_start_time)
+        super().__init__(name=process_name)
         self.filters = filters
         self.keep_running = keep_running
         self.debug_pipe = debug_pipe
         self.artificial_delay = artificial_delay
+        self.program_start_time = program_start_time
 
     def run(self):
         try:
             pipeline_shm = SharedMessage.open(
                 Config.shm_base_name + self.name,
-                OperationMode.WriteSync,
-                ReaderWaitPolicy.Count(0),
+                OperationMode.WriteSync(ReaderWaitPolicy.Count(0)),
             )
             video_feed_shm: SharedMessage = SharedMessage.open(
-                Config.video_feed_memory_name, OperationMode.ReadSync
+                Config.video_feed_memory_name, OperationMode.ReadSync()
             )
 
             processed_frame_indexes = []
@@ -51,6 +50,7 @@ class SequentialFilterProcess(ControlledProcess):
             dl = f"Data Lifecycle {self.name[0]}"
             pd = f"Process Data {self.name[0]}"
             tf = f"Transfer Data {self.name[0]}"
+
             while self.keep_running.value:
                 frame_as_bytes = video_feed_shm.read(block=True)
 
@@ -69,7 +69,7 @@ class SequentialFilterProcess(ControlledProcess):
                     frame_version=frame_version,
                     depth_frame=None,  # currently only available in real-time mode
                     raw_frame=frame,
-                    creation_time=time.perf_counter(),
+                    creation_time=time.time_ns(),
                     last_pipeline_name=self.name,
                 )
 

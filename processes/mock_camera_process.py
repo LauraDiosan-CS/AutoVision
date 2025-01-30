@@ -6,34 +6,35 @@ import cv2
 from rs_ipc import ReaderWaitPolicy, SharedMessage, OperationMode
 
 from configuration.config import Config, MPStrategy
-from processes.controlled_process import ControlledProcess
 
 
-class MockCameraProcess(ControlledProcess):
+class MockCameraProcess(mp.Process):
     def __init__(
         self,
         start_video: mp.Value,
         keep_running: mp.Value,
         program_start_time: float,
+        final_frame_version: mp.Value,
         name: str = None,
     ):
-        super().__init__(name=name, program_start_time=program_start_time)
+        super().__init__(name=name)
         self.start_video = start_video
         self.keep_running = keep_running
+        self.final_frame_version = final_frame_version
+        self.program_start_time = program_start_time
 
     def run(self):
         try:
             video_feed_shm = SharedMessage.open(
                 Config.video_feed_memory_name,
-                OperationMode.WriteSync,
-                (
+                OperationMode.WriteSync(
                     ReaderWaitPolicy.All()
                     if Config.mp_strategy == MPStrategy.ALL_FRAMES_ALL_PROCESSES
                     else ReaderWaitPolicy.Count(1)
                 ),
             )
 
-            time_between_frames = 1 / Config.camera_fps
+            time_between_frames = 1 / Config.camera_fps if Config.camera_fps != 0 else 0
 
             video_path = str(os.path.join(Config.videos_dir, Config.video_name))
             capture = cv2.VideoCapture(video_path)
@@ -82,7 +83,9 @@ class MockCameraProcess(ControlledProcess):
                 if time_to_wait > 0:
                     time.sleep(time_to_wait)
 
+            self.final_frame_version.value = video_feed_shm.last_written_version()
             video_feed_shm.stop()
+
             capture.release()
         except Exception as e:
             print(f"[CameraProcess]: Exception: {e}")

@@ -29,8 +29,8 @@ class Config:
     # Video to process
     video_name = "Raw_Car_Pov_Final.mp4"
     color_channels = 3
-    camera_fps = 500
-    output_fps = 30
+    camera_fps = 0  # 0 means uncapped fps
+    output_fps = 10
     width = 640 * 2
     height = 360 * 2
 

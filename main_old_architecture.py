@@ -10,8 +10,13 @@ from matplotlib import pyplot as plt
 from configuration.config import Config
 from main import setup_dir_for_iteration
 from perception.filters.base_filter import BaseFilter
-from perception.helpers import get_roi_bbox_for_video, extract_pipeline_names, stack_images_v3, \
-    draw_rois_and_wait, initialize_config
+from perception.helpers import (
+    get_roi_bbox_for_video,
+    extract_pipeline_names,
+    stack_images_v3,
+    draw_rois_and_wait,
+    initialize_config,
+)
 from perception.objects.pipe_data import PipeData
 from perception.objects.timingvisualizer import TimingVisualizer
 from perception.objects.video_info import VideoInfo, VideoRois
@@ -19,9 +24,16 @@ from perception.visualize_data import visualize_data
 
 
 class SimpleSequentialFilterProcess(mp.Process):
-    __slots__ = ['filters', 'pipe', 'filters', 'artificial_delay']
+    __slots__ = ["filters", "pipe", "filters", "artificial_delay"]
 
-    def __init__(self, filters: list[BaseFilter], keep_running: mp.Value, pipe: mp.Pipe, artificial_delay: float = 0.0, name: str = None):
+    def __init__(
+        self,
+        filters: list[BaseFilter],
+        keep_running: mp.Value,
+        pipe: mp.Pipe,
+        artificial_delay: float = 0.0,
+        name: str = None,
+    ):
         super().__init__(name=name)
         self.filters = filters
         self.keep_running = keep_running
@@ -62,11 +74,11 @@ class SimpleSequentialFilterProcess(mp.Process):
 
 
 def main():
-    mp.set_start_method('spawn')
+    mp.set_start_method("spawn")
 
     timing_visualizer = TimingVisualizer()
-    ot = 'Overall Timer'
-    se = 'Setup'
+    ot = "Overall Timer"
+    se = "Setup"
     timing_visualizer.start(ot)
     timing_visualizer.start(se, parent=ot)
 
@@ -81,15 +93,17 @@ def main():
     resize_needed = actual_width != Config.width or actual_height != Config.height
 
     if resize_needed:
-        print(f"Actual video width: {actual_width} height: {actual_height} so resize is needed")
+        print(
+            f"Actual video width: {actual_width} height: {actual_height} so resize is needed"
+        )
 
     pipelines, _, _ = initialize_config(Config.enable_pipeline_visualization)
 
-    keep_running = mp.Value('b', True)
+    keep_running = mp.Value("b", True)
 
     parallel_processes = []
 
-    for (index, pipeline) in enumerate(pipelines):
+    for index, pipeline in enumerate(pipelines):
         match pipeline.name:
             case "lane_detection":
                 artificial_delay = 0.0
@@ -103,39 +117,48 @@ def main():
 
         pipe, subprocess_pipe = mp.Pipe()
 
-        process = SimpleSequentialFilterProcess(filters=pipeline.filters,
-                                                keep_running=keep_running,
-                                                pipe=subprocess_pipe,
-                                                artificial_delay=artificial_delay,
-                                                name=pipeline.name)
+        process = SimpleSequentialFilterProcess(
+            filters=pipeline.filters,
+            keep_running=keep_running,
+            pipe=subprocess_pipe,
+            artificial_delay=artificial_delay,
+            name=pipeline.name,
+        )
         process.start()
         parallel_processes.append((process, pipe))
 
-    video_rois: VideoRois = get_roi_bbox_for_video(Config.video_name, Config.width, Config.height, Config.roi_config_path)
-    video_info = VideoInfo(video_name=Config.video_name, height=Config.height,
-                           width=Config.width, video_rois=video_rois)
+    video_rois: VideoRois = get_roi_bbox_for_video(
+        Config.video_name, Config.width, Config.height, Config.roi_config_path
+    )
+    video_info = VideoInfo(
+        video_name=Config.video_name,
+        height=Config.height,
+        width=Config.width,
+        video_rois=video_rois,
+    )
     pipeline_names = extract_pipeline_names()
     video_name = os.path.splitext(Config.video_name)[0]
-    video_writer = cv2.VideoWriter(os.path.join(recording_dir_path, f"Final_{video_name}.mp4"),
-                                   cv2.VideoWriter_fourcc(*'mp4v'),
-                                   Config.output_fps,
-                                   (Config.width, Config.height))
-
+    video_writer = cv2.VideoWriter(
+        os.path.join(recording_dir_path, f"Final_{video_name}.mp4"),
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        Config.output_fps,
+        (Config.width, Config.height),
+    )
 
     iteration_counter = 0
-    cv2.namedWindow('CarVision', cv2.WINDOW_NORMAL)
+    cv2.namedWindow("CarVision", cv2.WINDOW_NORMAL)
     timing_visualizer.stop(se)
 
-    it = 'Iteration'
-    cpd = 'Create Pipe Data'
-    viz = 'Draw & Display'
-    pf = 'Process Frame'
+    it = "Iteration"
+    cpd = "Create Pipe Data"
+    viz = "Draw & Display"
+    pf = "Process Frame"
 
     fps = 0
     frame_count = 0
     fps_timer = time.time()
     max_iter_duration = 0.0
-    min_iter_duration = float('inf')
+    min_iter_duration = float("inf")
 
     while keep_running.value and capture.isOpened():
         ret, frame = capture.read()
@@ -149,15 +172,19 @@ def main():
         iteration_counter += 1
 
         if resize_needed:
-            frame = cv2.resize(frame, (Config.width, Config.height), interpolation=cv2.INTER_LINEAR)
+            frame = cv2.resize(
+                frame, (Config.width, Config.height), interpolation=cv2.INTER_LINEAR
+            )
 
         timing_visualizer.start(cpd, parent=it)
-        pipe_data: PipeData = PipeData(frame=frame,
-                                  frame_version=iteration_counter,
-                                  depth_frame=None,
-                                  raw_frame=frame,
-                                  creation_time=time.perf_counter(),
-                                  last_pipeline_name = "None")
+        pipe_data: PipeData = PipeData(
+            frame=frame,
+            frame_version=iteration_counter,
+            depth_frame=None,
+            raw_frame=frame,
+            creation_time=time.time_ns(),
+            last_pipeline_name="None",
+        )
         timing_visualizer.stop(cpd)
         pipe_data.timing_info.start(pf)
 
@@ -178,12 +205,19 @@ def main():
             new_data.timing_info.stop(dl)
             pipe_data = pipe_data.merge(new_data)
 
-        timing_visualizer.timing_info.append_hierarchy(pipe_data.timing_info, parent_label_of_other=it)
+        timing_visualizer.timing_info.append_hierarchy(
+            pipe_data.timing_info, parent_label_of_other=it
+        )
 
         timing_visualizer.stop(pf)
         timing_visualizer.start(viz, parent=it)
-        drawn_frame = visualize_data(video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame)
-        if pipe_data.processed_frames is not None and len(pipe_data.processed_frames) > 0:
+        drawn_frame = visualize_data(
+            video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame
+        )
+        if (
+            pipe_data.processed_frames is not None
+            and len(pipe_data.processed_frames) > 0
+        ):
             squashed_frames = [[drawn_frame]]
 
             for pipeline_name in pipeline_names:
@@ -191,11 +225,13 @@ def main():
                     squashed_frames.append(pipe_data.processed_frames[pipeline_name])
                 else:
                     # add black frame
-                    squashed_frames.append([np.zeros((Config.height, Config.width, 3), dtype=np.uint8)])
+                    squashed_frames.append(
+                        [np.zeros((Config.height, Config.width, 3), dtype=np.uint8)]
+                    )
             stacked_frame = stack_images_v3(1, squashed_frames)
-            cv2.imshow('CarVision', stacked_frame)
+            cv2.imshow("CarVision", stacked_frame)
         else:
-            cv2.imshow('CarVision', drawn_frame)
+            cv2.imshow("CarVision", drawn_frame)
         timing_visualizer.stop(viz)
 
         if Config.save_processed_video:
@@ -205,9 +241,9 @@ def main():
 
         timing_visualizer.start("WaitKey", parent=it)
         key = cv2.waitKey(5)
-        if key & 0xFF == ord('q'):
+        if key & 0xFF == ord("q"):
             break
-        elif key & 0xFF == ord('x'):
+        elif key & 0xFF == ord("x"):
             if pipe_data is not None:
                 draw_rois_and_wait(pipe_data.frame, video_rois)
                 cv2.waitKey(0)
@@ -236,7 +272,9 @@ def main():
             fps_timer = iter_end_time
 
         print(f"Iteration {iteration_counter}: {iter_duration:.2f} s, FPS: {fps:.2f}")
-        print(f"Max iteration duration: {max_iter_duration:.2f} s, Min iteration duration: {min_iter_duration:.2f} s")
+        print(
+            f"Max iteration duration: {max_iter_duration:.2f} s, Min iteration duration: {min_iter_duration:.2f} s"
+        )
 
     cv2.destroyAllWindows()
 
@@ -251,9 +289,11 @@ def main():
 
     timing_visualizer.stop(ot)
     print(timing_visualizer.timing_info)
-    timing_visualizer.plot_pie_charts(save_path=os.path.join(recording_dir_path, 'timings'))
+    timing_visualizer.plot_pie_charts(
+        save_path=os.path.join(recording_dir_path, "timings")
+    )
     plt.show()  # Keep the pie chart open
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

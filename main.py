@@ -5,9 +5,10 @@ import time
 from datetime import datetime
 
 import cv2
+
 import numpy as np
 from matplotlib import pyplot as plt
-from rs_ipc import SharedMessage, OperationMode, ReaderWaitPolicy
+from rs_ipc import SharedMessage, OperationMode
 from configuration.config import Config
 from perception.helpers import (
     get_roi_bbox_for_video,
@@ -42,13 +43,17 @@ def main():
     visualization_shm = SharedMessage.create(
         Config.visualization_memory_name,
         Config.max_pipe_data_size,
-        OperationMode.ReadSync,
+        OperationMode.ReadSync(),
     )
+
+    final_frame_version = mp.Value("i", -1)
+
     mp_manager = MultiProcessingManager(
         keep_running=keep_running,
         program_start_time=program_start_time,
         start_video=start_video,
         recording_dir_path=recording_dir_path,
+        final_frame_version=final_frame_version,
         name="MultiProcessingManager",
     )
     mp_manager.start()
@@ -69,12 +74,16 @@ def main():
     cv2.namedWindow("CarVision", cv2.WINDOW_NORMAL)
     timing_visualizer.stop(se)
 
-    while True:
+    while not visualization_shm.is_stopped() and keep_running.value:
         pipe_data_bytes = visualization_shm.read(block=False)
 
         if pipe_data_bytes is not None:
             iteration_counter += 1
             pipe_data: PipeData = pickle.loads(pipe_data_bytes)
+
+            if pipe_data.frame_version == final_frame_version.value:
+                print(f"[Main] Received final frame version: {pipe_data.frame_version}")
+                break
 
             dl = f"Data Lifecycle {pipe_data.last_pipeline_name[0]}"
             tf2 = f"Transfer Data (MM -> Viz) {pipe_data.last_pipeline_name[0]}"
@@ -120,23 +129,21 @@ def main():
             else:
                 print("No frame to draw ROIs on")
 
-    timing_visualizer.start("Cleanup", parent=ot)
-    cv2.destroyAllWindows()
-
+    print(f"[Main] Iteration counter: {iteration_counter}")
     visualization_shm.stop()
     keep_running.value = False
+
+    timing_visualizer.stop(ot)
+    timing_visualizer.plot_pie_charts(
+        save_path=os.path.join(recording_dir_path, "timings")
+    )
+    plt.show()  # Keep the pie chart open
 
     print("[Main] Joining MultiProcessingManager")
     mp_manager.join()
     print("[Main] MultiProcessingManager joined")
 
-    timing_visualizer.stop("Cleanup")
-    timing_visualizer.stop(ot)
-    print(timing_visualizer.timing_info)
-    timing_visualizer.plot_pie_charts(
-        save_path=os.path.join(recording_dir_path, "timings")
-    )
-    plt.show()  # Keep the pie chart open
+    cv2.destroyAllWindows()
 
 
 def setup_dir_for_iteration():

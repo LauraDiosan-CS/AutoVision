@@ -50,12 +50,14 @@ class PipeData:
             # Ensure new dimensions are at least 1x1
             new_width = max(1, new_width)
             new_height = max(1, new_height)
-            frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            frame = cv2.resize(
+                frame, (new_width, new_height), interpolation=cv2.INTER_AREA
+            )
 
         # Add the (possibly downscaled) frame to processed_frames
         self.processed_frames.setdefault(self.last_pipeline_name, []).append(frame)
 
-    def merge(self, new_pipe_data: 'PipeData') -> 'PipeData':
+    def merge(self, new_pipe_data: "PipeData") -> "PipeData":
         """
         Merge data from another PipeData instance into this one.
         """
@@ -78,7 +80,7 @@ class PipeData:
             self.heading_error_degrees = new_pipe_data.heading_error_degrees
         if new_pipe_data.lateral_offset is not None:
             self.lateral_offset = new_pipe_data.lateral_offset
-        if new_pipe_data.traffic_signs is not None: # [] is a valid value
+        if new_pipe_data.traffic_signs is not None:  # [] is a valid value
             self.traffic_signs = new_pipe_data.traffic_signs
         if new_pipe_data.traffic_lights is not None:
             self.traffic_lights = new_pipe_data.traffic_lights
