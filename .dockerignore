@@ -1,0 +1,5 @@
+.git/
+env/
+venv/
+rs_ipc/target
+Dockerfile

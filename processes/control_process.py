@@ -15,15 +15,12 @@ from planning.behaviour_planner import BehaviourPlanner
 class Control(mp.Process):
     def __init__(self, keep_running: mp.Value):
         super().__init__()
-        self.http_connection_failed_count = 0
         self.steering_pid = None
-        self.http_pool = None
         self.keep_running = keep_running
 
     def run(self):
         try:
             behaviour_planner = BehaviourPlanner()
-            self.http_pool = urllib3.PoolManager()
             self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
             memory_reader: SharedMessage = SharedMessage.open(
                 Config.control_loop_memory_name, OperationMode.ReadSync()
@@ -48,9 +45,12 @@ class Control(mp.Process):
                     pipe_data.heading_error_degrees, pipe_data.lateral_offset
                 )
 
-                self.handle_http_communication(
-                    behaviour, pipe_data.heading_error_degrees, pipe_data.lateral_offset
-                )
+                json_data = {
+                    "normalized_steering_angle": normalized_steering_angle,
+                    "longitudinal_velocity": 1.0,
+                }
+
+                print(f"[Controller] Sending control data: {json_data}")
         except Exception as e:
             print(f"[Controller] Error: {e}")
             self.keep_running.value = False
@@ -82,29 +82,3 @@ class Control(mp.Process):
         )
 
         return normalized_steering_angle
-
-    def handle_http_communication(self, behaviour, heading_error, lateral_offset):
-        if (
-            Config.command_url
-            and self.http_connection_failed_count < Config.http_connection_failed_limit
-        ):
-            print(f"Sending command to car")
-            try:
-                json_data = {
-                    "behaviour": behaviour,
-                    "heading_error_degrees": heading_error,
-                    "lateral_error": lateral_offset,
-                }
-                start_time = time.time()
-                r = self.http_pool.request(
-                    "POST",
-                    Config.command_url,
-                    headers={"Content-Type": "application/json"},
-                    body=json.dumps(json_data),
-                    timeout=Config.http_timeout,
-                )
-                end_time = time.time()
-                print(f"Http success execution time: {end_time - start_time} seconds")
-            except Exception as e:
-                print(f"Error connecting to the car: {e}")
-                self.http_connection_failed_count += 1
