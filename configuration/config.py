@@ -2,12 +2,7 @@ import os
 from enum import Enum
 
 
-class VisualizationStrategy(Enum):
-    ALL_FRAMES = 1
-    NEWEST_FRAME = 2
-
-
-class MPStrategy(Enum):
+class ProcessingStrategy(Enum):
     LIVE = 1
     ALL_FRAMES_FASTEST_PROCESS = 2
     ALL_FRAMES_ALL_PROCESSES = 3
@@ -22,35 +17,31 @@ class Config:
 
     # Config Files
     pipeline_config_path = os.path.join(
-        perception_config_dir, "benchmark_pipeline.json"
+        perception_config_dir, "full_pipeline.json"
     )
     roi_config_path = os.path.join(perception_config_dir, "roi.json")
 
     # Video to process
     video_name = "Raw_Car_Pov_Final.mp4"
+    # video_name = "Benchmarking-17min.mp4"
     color_channels = 3
-    camera_fps = 0  # 0 means uncapped fps
-    output_fps = 10
-    width = 640 * 2
-    height = 360 * 2
+    camera_fps = 30  # 0 means uncapped fps
+    output_fps = 30
+    width = 1280
+    height = 720
 
     # General Config
     approx_max_pipe_data_size_multiplier = 10
-    visualizer_queue_element_count = 30 * 8
     save_queue_element_count = 30
 
     save_processed_video = True
-    enable_pipeline_visualization = False
-    visualizer_strategy = VisualizationStrategy.NEWEST_FRAME
-    mp_strategy = MPStrategy.ALL_FRAMES_FASTEST_PROCESS
+    enable_pipeline_visualization = True
+    processing_strategy = ProcessingStrategy.ALL_FRAMES_FASTEST_PROCESS
 
     # Shared Memory Config
     frame_size = width * height * color_channels
     max_pipe_data_size = frame_size * 10  # approximation
 
-    assert (
-        visualizer_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024
-    ), "Visualizer queue size is too big"
     assert (
         save_queue_element_count * max_pipe_data_size < 10 * 1024 * 1024 * 1024
     ), "Save queue size is too big"

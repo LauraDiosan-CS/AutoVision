@@ -27,7 +27,9 @@ def get_color_variations(base_color, num_variations):
 
 def format_time(time_value):
     units = [("s", 1), ("min", 60), ("h", 3600)]
-    time_str = f"{time_value * 1000:.0f} ms"  # Default to milliseconds if time is very small
+    time_str = (
+        f"{time_value * 1000:.0f} ms"  # Default to milliseconds if time is very small
+    )
     for unit, limit in reversed(units):
         if time_value >= limit:
             time_str = f"{time_value / limit:.2f} {unit}"
@@ -54,17 +56,19 @@ class TimingVisualizer:
         self.total_charts = None
         self.timing_info = TimingInfo()
 
-        plt.style.use('dark_background')
-        plt.rcParams.update({
-            'figure.facecolor': (0.2, 0.3, 0.3),  # Dark background for the figure
-            'axes.edgecolor': 'white',  # White edges for the axes
-            'axes.labelcolor': 'white',  # White labels
-            'xtick.color': 'white',  # White x-tick labels
-            'ytick.color': 'white',  # White y-tick labels
-            'text.color': 'white',  # White text
-            'grid.color': 'gray',  # Gray grid lines
-            'grid.alpha': 0.5,  # Slightly transparent grid lines
-        })
+        plt.style.use("dark_background")
+        plt.rcParams.update(
+            {
+                "figure.facecolor": (0.2, 0.3, 0.3),  # Dark background for the figure
+                "axes.edgecolor": "white",  # White edges for the axes
+                "axes.labelcolor": "white",  # White labels
+                "xtick.color": "white",  # White x-tick labels
+                "ytick.color": "white",  # White y-tick labels
+                "text.color": "white",  # White text
+                "grid.color": "gray",  # Gray grid lines
+                "grid.alpha": 0.5,  # Slightly transparent grid lines
+            }
+        )
 
         # color_cycle = itertools.cycle(plt.get_cmap('tab10').colors)
         # unique_labels = set(self.hierarchy[self.root_label])
@@ -80,11 +84,53 @@ class TimingVisualizer:
                     "purple": ["thistle", "lavender", "plum"],
                 },
                 "white": {
-                    "red": ["crimson", "orangered", "magenta", "darkred", "firebrick", "maroon", "brown", "indianred"],
-                    "green": ["forestgreen", "darkgreen", "seagreen", "limegreen", "greenyellow", "chartreuse", "lime"],
-                    "blue": ["skyblue", "navy", "aqua", "teal", "cyan", "turquoise", "darkturquoise", "lightblue"],
-                    "purple": ["violet", "indigo", "lavender", "plum", "purple", "darkviolet", "blueviolet"],
-                    "yellow": ["gold", "orange"]
+                    "red": [
+                        "crimson",
+                        "orangered",
+                        "magenta",
+                        "darkred",
+                        "firebrick",
+                        "maroon",
+                        "brown",
+                        "indianred",
+                    ],
+                    "green": [
+                        "forestgreen",
+                        "darkgreen",
+                        "seagreen",
+                        "limegreen",
+                        "greenyellow",
+                        "chartreuse",
+                        "lime",
+                    ],
+                    "blue": [
+                        "skyblue",
+                        "navy",
+                        "aqua",
+                        "teal",
+                        "cyan",
+                        "turquoise",
+                        "darkturquoise",
+                        "lightblue",
+                    ],
+                    "purple": [
+                        "violet",
+                        "indigo",
+                        "lavender",
+                        "plum",
+                        "purple",
+                        "darkviolet",
+                        "blueviolet",
+                    ],
+                    "yellow": [
+                        "gold",
+                        "orange",
+                        "darkorange",
+                        "yellow",
+                        "khaki",
+                        "lightyellow",
+                        "lemonchiffon",
+                    ],
                 },
                 "brown": {
                     "red": ["saddlebrown", "sienna", "chocolate"],
@@ -157,7 +203,9 @@ class TimingVisualizer:
         return self.timing_info.append_hierarchy(other, label)
 
     def calculate_averages(self):
-        return {label: self.timings[label] / self.counts[label] for label in self.timings}
+        return {
+            label: self.timings[label] / self.counts[label] for label in self.timings
+        }
 
     def plot_pie_charts(self, save_path=None):
         start_time = time.perf_counter()
@@ -172,7 +220,11 @@ class TimingVisualizer:
                 ax.clear()
 
         # Create new axes if the number of charts has changed
-        if self.total_charts != new_total_charts or self.fig is None or self.axs is None:
+        if (
+            self.total_charts != new_total_charts
+            or self.fig is None
+            or self.axs is None
+        ):
             cols = min(new_total_charts, 3)  # Up to 3 columns of charts
             rows = (new_total_charts + cols - 1) // cols  # Compute rows needed
 
@@ -182,15 +234,20 @@ class TimingVisualizer:
 
         # Create a color lookup table for the hierarchy
         color_lookup = {self.root_label: self.root_color}
-        for label, color in zip(self.hierarchy[self.root_label], self.color_hierarchy[self.root_color]):
+        for label, color in zip(
+            self.hierarchy[self.root_label], self.color_hierarchy[self.root_color]
+        ):
             color_lookup[label] = color
             if self.hierarchy.get(label):  # if the child has children
-                for child, child_color in zip(self.hierarchy[label], self.color_hierarchy[self.root_color][color]):
+                for child, child_color in zip(
+                    self.hierarchy[label], self.color_hierarchy[self.root_color][color]
+                ):
                     color_lookup[child] = child_color
                     if self.hierarchy.get(child):  # if the child has children
-                        for grandchild, grandchild_color in zip(self.hierarchy[child],
-                                                                self.color_hierarchy[self.root_color][color][
-                                                                    child_color]):
+                        for grandchild, grandchild_color in zip(
+                            self.hierarchy[child],
+                            self.color_hierarchy[self.root_color][color][child_color],
+                        ):
                             color_lookup[grandchild] = grandchild_color
 
         # Traverse the hierarchy and plot the pie charts
@@ -202,15 +259,19 @@ class TimingVisualizer:
             plotted_indices.add(idx)
 
             if parent not in self.timings:
-                print(f"Skipping '{parent}' as no timing data is available. This is likely a bug.")
+                print(
+                    f"Skipping '{parent}' as no timing data is available. This is likely a bug."
+                )
                 continue
 
             children = self.hierarchy.get(parent, [])
             labels = [child for child in children if child in self.timings]
             execution_times = [self.timings[child] for child in labels]
             averages = self.calculate_averages()
-            formatted_labels = [get_formatted_label(label, self.timings[label], averages[label]) for label in
-                                labels]
+            formatted_labels = [
+                get_formatted_label(label, self.timings[label], averages[label])
+                for label in labels
+            ]
 
             child_colors = []
             parent_color = color_lookup[parent]
@@ -230,20 +291,37 @@ class TimingVisualizer:
             if parent_time > children_total_time:
                 labels.append("Other")
                 execution_times.append(parent_time - children_total_time)
-                formatted_labels.append(get_formatted_label("Other", parent_time - children_total_time,
-                                                            (parent_time - children_total_time) / self.counts[
-                                                                parent]))
+                formatted_labels.append(
+                    get_formatted_label(
+                        "Other",
+                        parent_time - children_total_time,
+                        (parent_time - children_total_time) / self.counts[parent],
+                    )
+                )
                 child_colors.append(parent_color)  # Use parent color for "Other"
 
-            filtered_labels = [label if execution_time / parent_time >= 0.03 else '' for label, execution_time in
-                               zip(formatted_labels, execution_times)]
-            execution_times = [execution_time + 0.0 for execution_time in execution_times]
-            self.axs[idx].pie(execution_times, labels=filtered_labels, autopct='%1.1f%%',
-                              startangle=0, shadow=True, colors=child_colors, explode=[0.05] * len(execution_times))
+            filtered_labels = [
+                label if execution_time / parent_time >= 0.03 else ""
+                for label, execution_time in zip(formatted_labels, execution_times)
+            ]
+            execution_times = [
+                execution_time + 0.0 for execution_time in execution_times
+            ]
+            self.axs[idx].pie(
+                execution_times,
+                labels=filtered_labels,
+                autopct="%1.1f%%",
+                startangle=0,
+                shadow=True,
+                colors=child_colors,
+                explode=[0.05] * len(execution_times),
+            )
             title = get_formatted_title(parent, parent_time, averages[parent])
             self.axs[idx].set_title(title)
-            self.axs[idx].axis('equal')
-            self.axs[idx].legend(labels=formatted_labels, fontsize=8, bbox_to_anchor=(1, 1))
+            self.axs[idx].axis("equal")
+            self.axs[idx].legend(
+                labels=formatted_labels, fontsize=8, bbox_to_anchor=(1, 1)
+            )
             plt.subplots_adjust(left=0.0, right=0.75, top=1.0, bottom=0.0)
 
             for child in children:
@@ -253,7 +331,7 @@ class TimingVisualizer:
 
         for i in range(len(self.axs)):
             if i not in plotted_indices:
-                self.axs[i].axis('off')
+                self.axs[i].axis("off")
 
         plt.tight_layout()
         self.fig.canvas.draw()
@@ -270,16 +348,17 @@ class TimingVisualizer:
     def save_timings(self, save_path):
         avgs = self.calculate_averages()
         # with avg and total time
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             f.write("Label,Total Time,Avg Time\n")
             for label, total_time in self.timings.items():
                 avg_time = avgs[label]
                 f.write(f"{label},{total_time},{avg_time}\n")
 
-
     def restart_timers(self, running_timers):
         if self.root_label in running_timers:
-            self.start_times[self.root_label] = time.perf_counter() - running_timers[self.root_label]
+            self.start_times[self.root_label] = (
+                time.perf_counter() - running_timers[self.root_label]
+            )
             self.timings[self.root_label] -= running_timers[self.root_label]
             self.counts[self.root_label] -= 1
             running_timers.pop(self.root_label)
@@ -290,7 +369,9 @@ class TimingVisualizer:
         running_timers = {}
 
         if self.root_label in self.start_times:
-            running_timers[self.root_label] = time.perf_counter() - self.start_times.pop(self.root_label)
+            running_timers[self.root_label] = (
+                time.perf_counter() - self.start_times.pop(self.root_label)
+            )
             if self.root_label not in self.timings:
                 self.timings[self.root_label] = running_timers[self.root_label]
                 self.counts[self.root_label] = 1
@@ -304,66 +385,65 @@ class TimingVisualizer:
 
 
 if __name__ == "__main__":
+
     def complex_calculation():
         time.sleep(np.random.rand())  # Simulate time-consuming computation
         # time.sleep(1)
 
-
     def load_resources():
         time.sleep(np.random.rand() * 0.5)  # Simulate loading time
         # time.sleep(0.5)
-
 
     def data_processing():
         time.sleep(np.random.rand() * 0.3)  # Simulate data processing
         # time.sleep(0.3)
 
     timer = TimingVisualizer()
-    timer.start('Overall Task')
-    timer.start('Setup', parent='Overall Task')
+    timer.start("Overall Task")
+    timer.start("Setup", parent="Overall Task")
     time.sleep(0.1)
-    timer.stop('Setup')
+    timer.stop("Setup")
     for i in range(1):
-        timer.start('Iteration', parent='Overall Task')
-        timer.start('Setup Iteration', parent='Iteration')
-        timer.start('Load Resources', parent='Setup Iteration')
+        timer.start("Iteration", parent="Overall Task")
+        timer.start("Setup Iteration", parent="Iteration")
+        timer.start("Load Resources", parent="Setup Iteration")
         load_resources()
-        timer.stop('Load Resources')
-        timer.start('Initial Processing', parent='Setup Iteration')
+        timer.stop("Load Resources")
+        timer.start("Initial Processing", parent="Setup Iteration")
         data_processing()
-        timer.stop('Initial Processing')
-        timer.stop('Setup Iteration')
+        timer.stop("Initial Processing")
+        timer.stop("Setup Iteration")
 
-        timer.start('Main Computation', parent='Iteration')
+        timer.start("Main Computation", parent="Iteration")
 
-        timer.start('Complex Calculation', parent='Main Computation')
+        timer.start("Complex Calculation", parent="Main Computation")
         complex_calculation()
-        timer.stop('Complex Calculation')
+        timer.stop("Complex Calculation")
 
-        timer.start('Data Processing', parent='Main Computation')
-        timer.start('Subtask 1', parent='Data Processing')
+        timer.start("Data Processing", parent="Main Computation")
+        timer.start("Subtask 1", parent="Data Processing")
         time.sleep(0.1)
         data_processing()
-        timer.stop('Subtask 1')
-        timer.stop('Data Processing')
+        timer.stop("Subtask 1")
+        timer.stop("Data Processing")
 
-        timer.stop('Main Computation')
+        timer.stop("Main Computation")
 
-        timer.start('Finalization', parent='Iteration')
+        timer.start("Finalization", parent="Iteration")
         time.sleep(0.5)
-        timer.start('Save Results', parent='Finalization')
+        timer.start("Save Results", parent="Finalization")
         time.sleep(0.01)
-        timer.stop('Save Results')
-        timer.start('Cleanup Fin', parent='Finalization')
+        timer.stop("Save Results")
+        timer.start("Cleanup Fin", parent="Finalization")
         time.sleep(0.01)
-        timer.stop('Cleanup Fin')
+        timer.stop("Cleanup Fin")
         time.sleep(0.05)
-        timer.stop('Finalization')
-        timer.stop('Iteration')
+        timer.stop("Finalization")
+        timer.stop("Iteration")
         timer.plot_pie_charts()
-    timer.start('Cleanup', parent='Overall Task')
+    timer.start("Cleanup", parent="Overall Task")
     time.sleep(0.1)
-    timer.stop('Cleanup')
-    timer.stop('Overall Task')
+    timer.stop("Cleanup")
+    timer.stop("Overall Task")
     timer.plot_pie_charts()
     plt.show()

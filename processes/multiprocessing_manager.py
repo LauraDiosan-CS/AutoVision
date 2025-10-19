@@ -141,7 +141,7 @@ class MultiProcessingManager(mp.Process):
                 raw_frame=None,
             )
 
-            current_pipe_data.timing_info.start("Process Video")
+            current_pipe_data.timing_info.start("Process Video (in Parallel)")
 
             write_count = 0
             while self.keep_running.value:
@@ -167,7 +167,11 @@ class MultiProcessingManager(mp.Process):
                         if not control_loop_shm.is_stopped():
                             control_loop_shm.write(pickled_pipe_data)
 
-                        if Config.save_processed_video and save_shm_queue is not None:
+                        if (
+                            Config.save_processed_video
+                            and save_shm_queue
+                            and not save_shm_queue.is_stopped()
+                        ):
                             save_shm_queue.write(pickled_pipe_data)
                             write_count += 1
 

@@ -7,8 +7,8 @@ import numpy as np
 from dataclasses import dataclass
 from datetime import datetime
 
-from tests.shm_python_extra_lock import SharedMemory as SharedMemoryPythonWithExtraLock
-from tests.shm_python_full import SharedMemory as SharedMemoryPython
+from tests.shm_python_extra_lock import SharedMemory as SharedMemoryLock
+from tests.shm_python_full import SharedMemory as SharedMemoryPth
 
 import polars as pl  # Added Polars import
 
@@ -44,7 +44,7 @@ def mp_pipe_writer_proc(pipe, attempts, mock_pipe_data):
     """
     i = 0
     while i < attempts:
-        mock_pipe_data.send_time = time.perf_counter()
+        mock_pipe_data.send_time = time.time_ns()
         pipe.send(pickle.dumps(mock_pipe_data, protocol=pickle.HIGHEST_PROTOCOL))
         i += 1
     pipe.close()
@@ -56,7 +56,7 @@ def mp_queue_writer_proc(queue, attempts, mock_pipe_data, received: mp.Value):
     Sends MockPipeData objects through the Queue `attempts` times.
     """
     for _ in range(attempts):
-        mock_pipe_data.send_time = time.perf_counter()
+        mock_pipe_data.send_time = time.time_ns()
         queue.put(pickle.dumps(mock_pipe_data, protocol=pickle.HIGHEST_PROTOCOL))
         while not received.value:
             continue
@@ -76,7 +76,7 @@ def mp_pipe_perf_test(mock_pipe_data, data_size, attempts):
     )
     writer_proc.start()
 
-    total_duration = 0.0
+    total_duration_ns = 0.0
     for attempt in range(attempts):
         if attempt % 250 == 0:
             print(f"Processing attempt {attempt + 1}/{attempts}...")
@@ -85,15 +85,15 @@ def mp_pipe_perf_test(mock_pipe_data, data_size, attempts):
         recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
 
         # Validate and record duration
-        total_duration += time.perf_counter() - recv_pipe_data.send_time
+        total_duration_ns += time.time_ns() - recv_pipe_data.send_time
         assert recv_pipe_data.data.size == data_size
         assert np.array_equal(mock_pipe_data.data, recv_pipe_data.data)
 
     writer_proc.join()
     avg_duration_ms = (
-        total_duration / attempts
-    ) * 1000  # Convert average to milliseconds
-    return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
+        total_duration_ns / attempts
+    ) / 1e6  # Convert average to milliseconds
+    return total_duration_ns / 1e9, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
 def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
@@ -109,7 +109,7 @@ def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
     )
     writer_proc.start()
 
-    total_duration = 0.0
+    total_duration_ns = 0.0
     for attempt in range(attempts):
         if attempt % 250 == 0:
             print(f"Processing attempt {attempt + 1}/{attempts}...")
@@ -119,7 +119,7 @@ def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
         recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
 
         # Validate and record duration
-        total_duration += time.perf_counter() - recv_pipe_data.send_time
+        total_duration_ns += time.time_ns() - recv_pipe_data.send_time
         assert recv_pipe_data.data.size == data_size, "Data size mismatch."
         assert np.array_equal(
             mock_pipe_data.data, recv_pipe_data.data
@@ -128,12 +128,12 @@ def mp_queue_perf_test(mock_pipe_data, data_size, attempts):
 
     writer_proc.join()  # Wait for the writer process to finish
     avg_duration_ms = (
-        total_duration / attempts
-    ) * 1000  # Convert average to milliseconds
+        total_duration_ns / attempts
+    ) / 1e6  # Convert average to milliseconds
     queue.close()  # Ensure the queue is properly closed
     queue.join_thread()  # Wait for the queue thread to finish
 
-    return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
+    return total_duration_ns / 1e9, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
 def rs_ipc_shm_writer_proc(
@@ -149,13 +149,16 @@ def rs_ipc_shm_writer_proc(
     """
     writer = SharedMessage.open(
         shm_name,
-        OperationMode.WriteSync if op_mode == "SYNC" else OperationMode.WriteAsync,
-        ReaderWaitPolicy.All(),
+        (
+            OperationMode.WriteSync(ReaderWaitPolicy.All())
+            if op_mode == "SYNC"
+            else OperationMode.WriteAsync(ReaderWaitPolicy.All())
+        ),
     )
 
     i = 0
     while i < attempts:
-        mock_pipe_data.send_time = time.perf_counter()
+        mock_pipe_data.send_time = time.time_ns()
         # Serialize MockPipeData and write to shared memory
         data_serialized = pickle.dumps(mock_pipe_data, protocol=pickle.HIGHEST_PROTOCOL)
         writer.write(data_serialized)
@@ -184,7 +187,7 @@ def py_ipc_shm_writer_proc(
     i = 0
     while i < attempts:
         # Wait until the parent has read the last written version
-        mock_pipe_data.send_time = time.perf_counter()
+        mock_pipe_data.send_time = time.time_ns()
 
         while writer.last_written_version() > last_read_version.value:
             continue
@@ -220,9 +223,7 @@ def rs_ipc_shm_perf_test(
     last_read_version = mp.Value("i", 0)
 
     # Create SharedMemoryReader
-    reader = SharedMessage.create(
-        shm_name, shm_size, OperationMode.ReadSync, ReaderWaitPolicy.All()
-    )
+    reader = SharedMessage.create(shm_name, shm_size, OperationMode.ReadSync())
 
     # Start the writer process
     writer_proc = mp.Process(
@@ -255,7 +256,7 @@ def rs_ipc_shm_perf_test(
 
             recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
 
-            total_duration += time.perf_counter() - recv_pipe_data.send_time
+            total_duration += time.time_ns() - recv_pipe_data.send_time
 
             assert recv_pipe_data.data.size == data_size
             assert np.array_equal(mock_pipe_data.data, recv_pipe_data.data)
@@ -264,8 +265,8 @@ def rs_ipc_shm_perf_test(
 
     avg_duration_ms = (
         total_duration / attempts
-    ) * 1000  # Convert average to milliseconds
-    return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
+    ) / 1e6  # Convert average to milliseconds
+    return total_duration / 1e9, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
 def py_ipc_shm_perf_test(
@@ -285,9 +286,9 @@ def py_ipc_shm_perf_test(
     last_read_version = mp.Value("i", 0)
 
     if shm_impl_name == "shm_lock":
-        shm_impl = SharedMemoryPythonWithExtraLock
+        shm_impl = SharedMemoryLock
     else:
-        shm_impl = SharedMemoryPython
+        shm_impl = SharedMemoryPth
 
     # Create SharedMemoryReader
     reader = shm_impl.create(shm_name, shm_size, mode=OperationMode.ReadSync)
@@ -329,7 +330,7 @@ def py_ipc_shm_perf_test(
 
             recv_pipe_data: MockPipeData = pickle.loads(data_bytes)
 
-            total_duration += time.perf_counter() - recv_pipe_data.send_time
+            total_duration += time.time_ns() - recv_pipe_data.send_time
 
             assert recv_pipe_data.data.size == data_size
             assert np.array_equal(mock_pipe_data.data, recv_pipe_data.data)
@@ -338,8 +339,8 @@ def py_ipc_shm_perf_test(
 
     avg_duration_ms = (
         total_duration / attempts
-    ) * 1000  # Convert average to milliseconds
-    return total_duration, avg_duration_ms, mock_pipe_data.size_human_readable
+    ) / 1e6  # Convert average to milliseconds
+    return total_duration / 1e9, avg_duration_ms, mock_pipe_data.size_human_readable
 
 
 def compare_methods(test_cases, ipc_to_test, size_multiplier, attempts=500):
@@ -475,7 +476,7 @@ if __name__ == "__main__":
     ]
 
     size_multiplier = 3
-    attempts = 100000
+    attempts = 5
 
     results = compare_methods(
         test_cases, ipc_to_test, size_multiplier, attempts=attempts

@@ -5,7 +5,7 @@ import cv2
 
 from rs_ipc import ReaderWaitPolicy, SharedMessage, OperationMode
 
-from configuration.config import Config, MPStrategy
+from configuration.config import Config, ProcessingStrategy
 
 
 class MockCameraProcess(mp.Process):
@@ -29,7 +29,8 @@ class MockCameraProcess(mp.Process):
                 Config.video_feed_memory_name,
                 OperationMode.WriteSync(
                     ReaderWaitPolicy.All()
-                    if Config.mp_strategy == MPStrategy.ALL_FRAMES_ALL_PROCESSES
+                    if Config.processing_strategy
+                    == ProcessingStrategy.ALL_FRAMES_ALL_PROCESSES
                     else ReaderWaitPolicy.Count(1)
                 ),
             )
