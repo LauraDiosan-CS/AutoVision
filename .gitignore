@@ -3,3 +3,5 @@
 .idea/
 trash/
 files/
+train/datasets
+train/runs

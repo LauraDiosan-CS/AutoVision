@@ -1,0 +1,15 @@
+path: bdd100k_yolo_custom
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: person
+  1: rider
+  2: car
+  3: truck
+  4: bus
+  5: train
+  6: motorcycle
+  7: bicycle
+  8: traffic light
+  9: traffic sign
