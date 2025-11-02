@@ -37,6 +37,20 @@ export default function Home() {
     useState<ModuleEditorStateNullable>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
 
+  const createPlaceholderModule = useCallback(() => {
+    const accent =
+      accentPalette[Math.floor(Math.random() * accentPalette.length)];
+
+    return {
+      id: `module-${Math.random().toString(36).slice(2, 10)}`,
+      name: "New Module",
+      config: {
+        description: "Placeholder module",
+      },
+      accent,
+    };
+  }, []);
+
   const resetWorkspace = useCallback(() => {
     setPipelines([]);
     setWorkspaceError(null);
@@ -109,7 +123,7 @@ export default function Home() {
           0,
           module
         );
-        return draft;
+        return draft.filter((lane) => lane.modules.length > 0);
       });
     },
     []
@@ -301,11 +315,44 @@ export default function Home() {
       const lane = draft[editorState.laneIndex];
       if (!lane) return previous;
       lane.modules.splice(editorState.moduleIndex, 1);
-      return draft;
+      return draft.filter((candidate) => candidate.modules.length > 0);
     });
 
     closeEditor();
   }, [closeEditor, editorState]);
+
+  const handleAddLane = useCallback(() => {
+    setPipelines((previous) => {
+      const newLane: PipelineLane = {
+        id: `lane-${Math.random().toString(36).slice(2, 10)}`,
+        label: `Lane ${previous.length + 1}`,
+        modules: [createPlaceholderModule()],
+      };
+
+      return [...previous, newLane];
+    });
+  }, [createPlaceholderModule]);
+
+  const handleRenameLane = useCallback((laneIndex: number, label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+
+    setPipelines((previous) =>
+      previous.map((lane, index) =>
+        index === laneIndex ? { ...lane, label: trimmed } : lane
+      )
+    );
+  }, []);
+
+  const handleDeleteLane = useCallback(
+    (laneIndex: number) => {
+      setPipelines((previous) =>
+        previous.filter((_, index) => index !== laneIndex)
+      );
+      closeEditor();
+    },
+    [closeEditor]
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -324,6 +371,9 @@ export default function Home() {
           onEditModule={openEditModule}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onAddLane={handleAddLane}
+          onRenameLane={handleRenameLane}
+          onDeleteLane={handleDeleteLane}
         />
         <ExportFooter
           onExport={handleExport}
