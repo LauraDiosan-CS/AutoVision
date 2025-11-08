@@ -7,7 +7,7 @@ import os
 # === Paths ===
 YOLO_WEIGHTS = "exp/det_bdd_v11_custom2/weights/best.pt"
 SOURCE_DIR = "datasets/bdd100k_yolo_custom/images/test"
-OUTPUT_DIR = "runs/detect/predict_signclass"
+OUTPUT_DIR = "runs/detect/predict_bdd_sign_class"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # === Load YOLO detector ===

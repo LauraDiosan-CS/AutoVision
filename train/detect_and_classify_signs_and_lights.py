@@ -10,8 +10,8 @@ import cv2
 
 # -------- Paths --------
 YOLO_WEIGHTS = "exp/det_bdd_v11_custom2/weights/best.pt"
-SOURCE_DIR = "datasets/bdd100k_yolo_custom/images/test"
-OUTPUT_DIR = "runs/detect/predict_sign_lightclass"
+SOURCE_DIR = "datasets/ntt_env"
+OUTPUT_DIR = "runs/detect/predict_ntt_sign_light_class"
 Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 
 # -------- Load YOLO detector --------
