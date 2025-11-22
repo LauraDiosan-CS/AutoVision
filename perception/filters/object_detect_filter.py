@@ -36,9 +36,10 @@ class ObjectDetectionFilter(BaseFilter):
             bbox_tensor_cpu = yolo_object.boxes.xyxy.cpu()
             bbox_list = [float(f'{el: .4f}') for el in bbox_tensor_cpu.tolist()[0]]
 
-            cv2.circle(data.frame, (int((bbox_list[0] + bbox_list[2]) / 2), int((bbox_list[1] + bbox_list[3]) / 2)), 4,
-                       (255, 0, 0), 5)
-
+            if self.visualize:
+                data.frame = data.frame.copy() # make it writable
+                cv2.circle(data.frame, (int((bbox_list[0] + bbox_list[2]) / 2), int((bbox_list[1] + bbox_list[3]) / 2)), 4,
+                           (255, 0, 0), 5)
             if data.depth_frame is not None:  # check if realsense is connected and depth frame is available
                 distance = get_distance_from_realsense(data.depth_frame, bbox_list)
             else:

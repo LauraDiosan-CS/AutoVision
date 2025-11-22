@@ -30,17 +30,17 @@ class PipeData:
     pedestrians: list[RoadObject] = None
     horizontal_lines: list[RoadObject] = None
 
-    def add_processed_frame(self, frame, downscale_factor=2):
+    def add_processed_frame(self, frame, downscale_factor=1):
         """
         Add a processed frame to the data after downscaling its resolution.
 
         Parameters:
         - frame: The image/frame to be processed and added.
         - downscale_factor (int or float): The factor by which to downscale the frame.
-                                           Must be greater than 1. (1 means no downscaling).
+                                           Must be >= 1. (1 means no downscaling).
         """
-        if downscale_factor <= 1:
-            raise ValueError("downscale_factor must be greater than 1.")
+        if downscale_factor < 1:
+            raise ValueError("downscale_factor must be >= 1.")
 
         # Downscale the frame if the factor is not 1
         if downscale_factor > 1:
