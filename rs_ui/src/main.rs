@@ -1,132 +1,85 @@
-use iced::futures::SinkExt;
-use iced::futures::channel::mpsc;
-use iced::widget::{column, container, image, text};
-use iced::{Alignment, Element, Length, Task, futures};
-use rs_ipc::container::message::SharedMessage;
-use rs_ipc::primitives::memory_mapper::SharedMemoryMapper;
-use std::thread;
+mod grid;
+mod image_decoder;
+mod image_reader;
+
+use crate::grid::images_grid;
+use crate::image_reader::{image_producer, Frame};
+use iced::widget::{column, container, text};
+use iced::{Element, Length, Task};
+use rs_ipc::SharedMessageMapper;
+use std::process::{Child, Command};
+use std::sync::Arc;
 
 fn main() -> iced::Result {
     iced::application("AutoVision", Counter::update, Counter::view).run_with(Counter::new)
 }
 
 struct Counter {
+    child: Child,
     frame: u64,
-    current_image: image::Handle,
+    current_images: Vec<Frame>,
+    shared_memory: Arc<SharedMessageMapper>,
 }
 
-#[derive(Debug, Clone)]
+impl Drop for Counter {
+    fn drop(&mut self) {
+        self.shared_memory.stop();
+        if let Err(e) = self.child.wait() {
+            eprintln!("Error waiting Python process: {}", e);
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum Message {
-    NewData(image::Handle),
+    NewFrames(Vec<Frame>),
+    VideoFinished,
 }
 
 impl Counter {
     fn new() -> (Self, Task<Message>) {
+        let shared_memory = Arc::new(
+            SharedMessageMapper::create(c"rust_ui".into(), 100 * 1024 * 1024)
+                .expect("Can't create shared memory"),
+        );
+
+        let child = Command::new("python3")
+            .arg("main_rust.py")
+            // .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to execute python3");
+
         let initial_state = Self {
+            child,
             frame: 0,
-            current_image: image::Handle::from_path("assets/ferris.png"),
+            current_images: Vec::new(),
+            shared_memory: shared_memory.clone(),
         };
 
-        (initial_state, Task::stream(image_producer()))
+        (initial_state, Task::stream(image_producer(shared_memory)))
     }
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::NewData(image) => {
+            Message::NewFrames(images) => {
                 self.frame += 1;
-                self.current_image = image;
+                self.current_images = images;
+            },
+            Message::VideoFinished => {
+                self.frame = u64::MAX;
             }
         }
     }
 
     fn view(&'_ self) -> Element<'_, Message> {
         let content = column![
-            text(format!("Frame: {}", self.frame)).size(50),
-            image::Image::new(self.current_image.clone()).width(Length::Fixed(100.0)),
-        ]
-        .padding(20)
-        .align_x(Alignment::Center)
-        .spacing(10);
+            text(format!("Frame: {}", self.frame)).size(20),
+            images_grid(&self.current_images, 3)
+        ];
 
         container(content)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .into()
     }
-}
-
-#[repr(C)]
-struct PythonData {
-    id: u64,
-    width: u32,
-    height: u32,
-    pixels: [u8],
-}
-
-impl PythonData {
-    fn size_of_fields() -> usize {
-        #[repr(C)]
-        struct PythonDataSized {
-            id: u64,
-            width: u32,
-            height: u32,
-        }
-        size_of::<PythonDataSized>()
-    }
-
-    unsafe fn cast_from_u8(data: &[u8]) -> Option<&Self> {
-        let payload_size = data.len().checked_sub(Self::size_of_fields())?;
-        let slice_ptr: *const [u8] =
-            std::ptr::slice_from_raw_parts(data.as_ptr().cast(), payload_size);
-        unsafe { (slice_ptr as *const Self).as_ref() }
-    }
-}
-
-struct RawImageData {
-    id: u64,
-    width: u32,
-    height: u32,
-    pixels: Box<[u8]>,
-}
-
-fn image_producer() -> impl futures::Stream<Item = Message> {
-    let (mut sender, receiver) = mpsc::channel(1);
-
-    thread::spawn(move || {
-        let shared_memory =
-            unsafe { SharedMemoryMapper::<SharedMessage>::create(c"test".into(), 10 * 1024 * 1024).unwrap() };
-        shared_memory.add_reader();
-        let mut last_read_version = 0;
-
-        while !shared_memory.is_stopped() {
-            let mut result = None;
-            
-            shared_memory.blocking_read(last_read_version, |new_version, data| {
-                last_read_version = new_version;
-                let Some(python_data) = (unsafe { PythonData::cast_from_u8(data) }) else {
-                    eprintln!("Failed to cast Python data");
-                    return;
-                };
-
-                result = Some(RawImageData {
-                    id: python_data.id,
-                    width: python_data.width,
-                    height: python_data.height,
-                    pixels: Box::from(&python_data.pixels),
-                });
-            });
-            
-            let Some(result) = result else {
-                continue;
-            };
-            
-            let handle = image::Handle::from_rgba(result.width, result.height, result.pixels);
-
-            if futures::executor::block_on(sender.send(Message::NewData(handle))).is_err() {
-                break;
-            }
-        }
-    });
-
-    receiver
 }
