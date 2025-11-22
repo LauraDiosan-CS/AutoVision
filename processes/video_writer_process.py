@@ -29,7 +29,7 @@ class VideoWriterProcess(mp.Process):
     def run(self):
         try:
             video_feed_shm = SharedMessage.open(
-                self.shared_memory_name, mode=OperationMode.ReadAsync()
+                self.shared_memory_name, mode=OperationMode.ReadAsync
             )  # ReadAsync will make it operate like a queue, as long as the writer side has ReaderWaitPolicy active
             video_writer = cv2.VideoWriter(
                 self.save_info.video_path,

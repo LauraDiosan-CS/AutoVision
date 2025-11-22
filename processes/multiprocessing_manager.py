@@ -10,7 +10,7 @@ from rs_ipc import (
     read_all_map,
 )
 
-from configuration.config import Config
+from configuration.config import Config, ProcessingStrategy
 from perception.helpers import initialize_config
 from perception.objects.pipe_data import PipeData
 from perception.objects.save_info import SaveInfo
@@ -44,16 +44,21 @@ class MultiProcessingManager(mp.Process):
             video_feed_shm = SharedMessage.create(
                 name=Config.video_feed_memory_name,
                 size=Config.frame_size,
-                mode=OperationMode.CreateOnly(),
+                mode=OperationMode.CreateOnly,
+                reader_wait_policy=ReaderWaitPolicy.All()
+                if Config.processing_strategy
+                   == ProcessingStrategy.ALL_FRAMES_ALL_PROCESSES
+                else ReaderWaitPolicy.Count(1)
             )
             control_loop_shm = SharedMessage.create(
                 name=Config.control_loop_memory_name,
                 size=Config.max_pipe_data_size,
-                mode=OperationMode.WriteAsync(ReaderWaitPolicy.Count(0)),
+                mode=OperationMode.WriteAsync,
+                reader_wait_policy=ReaderWaitPolicy.Count(0)
             )
             visualization_shm = SharedMessage.open(
                 Config.visualization_memory_name,
-                OperationMode.WriteAsync(ReaderWaitPolicy.Count(0)),
+                OperationMode.WriteAsync,
             )
 
             save_shm_queue = None
@@ -62,7 +67,8 @@ class MultiProcessingManager(mp.Process):
                 save_shm_queue = SharedMessage.create(
                     Config.save_final_memory_name,
                     Config.max_pipe_data_size,
-                    OperationMode.WriteAsync(ReaderWaitPolicy.All()),
+                    OperationMode.WriteAsync,
+                    ReaderWaitPolicy.All()
                 )  # ReadAsync will make it operate like a queue, as long as the writer side has ReaderWaitPolicy active
 
                 video_name = os.path.splitext(Config.video_name)[0]
@@ -95,7 +101,8 @@ class MultiProcessingManager(mp.Process):
                     SharedMessage.create(
                         Config.shm_base_name + pipeline.name,
                         Config.max_pipe_data_size,
-                        OperationMode.ReadSync(),
+                        OperationMode.ReadSync,
+                        ReaderWaitPolicy.Count(0)
                     )
                 )
 

@@ -8,6 +8,8 @@ import cv2
 
 import numpy as np
 from matplotlib import pyplot as plt
+from rs_ipc.rs_ipc import ReaderWaitPolicy
+
 from rs_ipc import SharedMessage, OperationMode
 from configuration.config import Config
 from perception.helpers import (
@@ -43,7 +45,8 @@ def main():
     visualization_shm = SharedMessage.create(
         Config.visualization_memory_name,
         Config.max_pipe_data_size,
-        OperationMode.ReadSync(),
+        OperationMode.ReadSync,
+        ReaderWaitPolicy.Count(0)
     )
 
     final_frame_version = mp.Value("i", -1)

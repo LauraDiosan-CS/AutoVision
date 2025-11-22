@@ -150,9 +150,9 @@ def rs_ipc_shm_writer_proc(
     writer = SharedMessage.open(
         shm_name,
         (
-            OperationMode.WriteSync(ReaderWaitPolicy.All())
+            OperationMode.WriteSync
             if op_mode == "SYNC"
-            else OperationMode.WriteAsync(ReaderWaitPolicy.All())
+            else OperationMode.WriteAsync
         ),
     )
 
@@ -223,7 +223,7 @@ def rs_ipc_shm_perf_test(
     last_read_version = mp.Value("i", 0)
 
     # Create SharedMemoryReader
-    reader = SharedMessage.create(shm_name, shm_size, OperationMode.ReadSync())
+    reader = SharedMessage.create(shm_name, shm_size, OperationMode.ReadSync)
 
     # Start the writer process
     writer_proc = mp.Process(

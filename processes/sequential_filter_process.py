@@ -39,10 +39,10 @@ class SequentialFilterProcess(mp.Process):
         try:
             pipeline_shm = SharedMessage.open(
                 Config.shm_base_name + self.name,
-                OperationMode.WriteSync(ReaderWaitPolicy.Count(0)),
+                OperationMode.WriteSync,
             )
             video_feed_shm: SharedMessage = SharedMessage.open(
-                Config.video_feed_memory_name, OperationMode.ReadSync()
+                Config.video_feed_memory_name, OperationMode.ReadSync
             )
 
             processed_frame_indexes = []

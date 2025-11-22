@@ -23,7 +23,7 @@ class Control(mp.Process):
             behaviour_planner = BehaviourPlanner()
             self.steering_pid = PIDController(kp=0.5, ki=0.0, kd=0.1)
             memory_reader: SharedMessage = SharedMessage.open(
-                Config.control_loop_memory_name, OperationMode.ReadSync()
+                Config.control_loop_memory_name, OperationMode.ReadSync
             )
 
             while self.keep_running:

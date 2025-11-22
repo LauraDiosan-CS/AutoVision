@@ -27,12 +27,7 @@ class MockCameraProcess(mp.Process):
         try:
             video_feed_shm = SharedMessage.open(
                 Config.video_feed_memory_name,
-                OperationMode.WriteSync(
-                    ReaderWaitPolicy.All()
-                    if Config.processing_strategy
-                    == ProcessingStrategy.ALL_FRAMES_ALL_PROCESSES
-                    else ReaderWaitPolicy.Count(1)
-                ),
+                OperationMode.WriteSync
             )
 
             time_between_frames = 1 / Config.camera_fps if Config.camera_fps != 0 else 0
