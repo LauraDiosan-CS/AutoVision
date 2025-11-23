@@ -11,23 +11,32 @@ from perception.filters.base_filter import BaseFilter
 from perception.objects.pipeline_config_types import PipelineConfig, JSONPipelinesTYPE, FILTER_CLASS_LOOKUP
 from perception.objects.video_info import VideoInfo, VideoRois
 
-def pack_named_images(items: list[tuple[str, np.ndarray]]) -> bytearray:
+def pack_named_images(description: str, items: list[tuple[str, np.ndarray]]) -> bytearray:
     """
     Packs (name, image) tuples into a single bytearray.
-    Layout: [64s name][u32 width][u32 height][u32 channels][pixel bytes]...
+    Layout: [55s name][u32 width][u32 height][u8 channels][pixel bytes]...
     """
-    # 64s: 64 char bytes, I: uint32
-    HEADER_FORMAT = '=64sIII'
-    HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
+    DESCRIPTION_SIZE = 1024
+    NAME_SIZE = 55
+    HEADER_FORMAT = f'={NAME_SIZE}sIIB'
+    HEADER_SIZE = struct.calcsize(HEADER_FORMAT) # 64 bytes
 
     # 1. Pre-calculate total size
-    total_size = 0
+    total_size = DESCRIPTION_SIZE
     for _, img in items:
         total_size += HEADER_SIZE + img.nbytes
 
     # 2. Allocate single contiguous buffer
     buffer = bytearray(total_size)
-    current_offset = 0
+
+    # Write description
+    description_bytes = description.encode('utf-8')
+    # Ensure we don't overflow the DESCRIPTION_SIZE byte limit
+    if len(description_bytes) > DESCRIPTION_SIZE:
+        description_bytes = description_bytes[:DESCRIPTION_SIZE]
+    buffer[:len(description_bytes)] = description_bytes
+
+    current_offset = DESCRIPTION_SIZE
 
     for name, img in items:
         # 3. Analyze dimensions
@@ -38,12 +47,12 @@ def pack_named_images(items: list[tuple[str, np.ndarray]]) -> bytearray:
 
         # 4. Prepare Name (Encode -> Truncate -> Pack handles padding)
         name_bytes = name.encode('utf-8')
-        # Ensure we don't overflow the 64 byte limit
-        if len(name_bytes) > 64:
-            name_bytes = name_bytes[:64]
+        # Ensure we don't overflow the NAME_SIZE byte limit
+        if len(name_bytes) > NAME_SIZE:
+            name_bytes = name_bytes[:NAME_SIZE]
 
         # 5. Pack Header
-        # '64s' automatically pads with null bytes if len < 64
+        # '55s' automatically pads with null bytes if len < NAME_SIZE
         struct.pack_into(HEADER_FORMAT, buffer, current_offset,
                          name_bytes, width, height, channels)
 

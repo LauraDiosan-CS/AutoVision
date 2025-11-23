@@ -25,6 +25,7 @@
                 "visualize": false
             },
             "lane_detect": {
+                "white_line_threshold": 135,
                 "visualize": true
             },
             "heading_error": {

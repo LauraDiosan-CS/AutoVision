@@ -138,7 +138,7 @@ class MultiProcessingManager(mp.Process):
 
         current_pipe_data = PipeData(
             frame=None,
-            frame_version=-1,
+            frame_version=0,
             depth_frame=None,
             last_pipeline_name="None",
             creation_time=time.time(),
@@ -182,6 +182,23 @@ class MultiProcessingManager(mp.Process):
                     if not control_loop_shm.is_stopped():
                         control_loop_shm.write(pickled_pipe_data)
 
+                    if not rust_ui.is_stopped() and current_pipe_data.raw_frame is not None:
+                        drawn_frame = visualize_data(
+                            video_info=video_info, data=current_pipe_data, raw_frame=current_pipe_data.raw_frame
+                        )
+                        squashed_frames = [("Main", drawn_frame)]
+                        if current_pipe_data.processed_frames is not None and len(current_pipe_data.processed_frames) > 0:
+                            for name, pipeline_images in current_pipe_data.processed_frames.items():
+                                for (index, image) in enumerate(pipeline_images):
+                                    squashed_frames.append((f"{name} {index}", image))
+
+                        description = f"Frame: {current_pipe_data.frame_version}; Heading error: {int(current_pipe_data.heading_error_degrees)}°; Lateral Offset: {int(current_pipe_data.lateral_offset * 100)}%"
+                        images_bytes = bytes(pack_named_images(description, squashed_frames))
+                        # print(time.perf_counter() - start_time1)
+                        if len(images_bytes) >= rust_ui.payload_max_size():
+                            print("[Main] Images to visualize too big")
+                        rust_ui.write(images_bytes)
+
                     if (
                         Config.save_processed_video
                         and save_shm_queue
@@ -192,22 +209,6 @@ class MultiProcessingManager(mp.Process):
                     current_pipe_data.timing_info.remove_recursive(dl)
 
                     del new_pipe_data
-
-            if not rust_ui.is_stopped():
-                drawn_frame = visualize_data(
-                    video_info=video_info, data=current_pipe_data, raw_frame=current_pipe_data.raw_frame
-                )
-                squashed_frames = [("Main", drawn_frame)]
-                if current_pipe_data.processed_frames is not None and len(current_pipe_data.processed_frames) > 0:
-                    for name, pipeline_images in current_pipe_data.processed_frames.items():
-                        for (index, image) in enumerate(pipeline_images):
-                            squashed_frames.append((f"{name} {index}", image))
-
-                images_bytes = bytes(pack_named_images(squashed_frames))
-                # print(time.perf_counter() - start_time1)
-                if len(images_bytes) >= rust_ui.payload_max_size():
-                    print("IMAGES TOOO BIIIIIGGGGGG!!!!!!!!")
-                rust_ui.write(images_bytes)
 
             if current_pipe_data.frame_version == self.final_frame_version.value:
                     print(f"[Main] Received final frame version: {current_pipe_data.frame_version}")

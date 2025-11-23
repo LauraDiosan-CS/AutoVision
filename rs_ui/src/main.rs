@@ -1,9 +1,9 @@
 mod grid;
-mod image_decoder;
+mod decoder;
 mod image_reader;
 
 use crate::grid::images_grid;
-use crate::image_reader::{image_producer, Frame};
+use crate::image_reader::{image_producer, Frames};
 use iced::widget::{column, container, text};
 use iced::{Element, Length, Task};
 use rs_ipc::SharedMessageMapper;
@@ -17,7 +17,7 @@ fn main() -> iced::Result {
 struct Counter {
     child: Child,
     frame: u64,
-    current_images: Vec<Frame>,
+    current_images: Frames,
     shared_memory: Arc<SharedMessageMapper>,
 }
 
@@ -32,14 +32,14 @@ impl Drop for Counter {
 
 #[derive(Debug)]
 pub enum Message {
-    NewFrames(Vec<Frame>),
+    NewFrames(Frames),
     VideoFinished,
 }
 
 impl Counter {
     fn new() -> (Self, Task<Message>) {
         let shared_memory = Arc::new(
-            SharedMessageMapper::create(c"rust_ui".into(), 100 * 1024 * 1024)
+            SharedMessageMapper::create(c"rust_ui".into(), 64 * 1024 * 1024)
                 .expect("Can't create shared memory"),
         );
 
@@ -52,7 +52,7 @@ impl Counter {
         let initial_state = Self {
             child,
             frame: 0,
-            current_images: Vec::new(),
+            current_images: Frames::default(),
             shared_memory: shared_memory.clone(),
         };
 
@@ -64,7 +64,7 @@ impl Counter {
             Message::NewFrames(images) => {
                 self.frame += 1;
                 self.current_images = images;
-            },
+            }
             Message::VideoFinished => {
                 self.frame = u64::MAX;
             }
@@ -73,8 +73,14 @@ impl Counter {
 
     fn view(&'_ self) -> Element<'_, Message> {
         let content = column![
-            text(format!("Frame: {}", self.frame)).size(20),
-            images_grid(&self.current_images, 3)
+            text(if self.frame == u64::MAX {
+                "VIDEO FINISHED"
+            } else {
+                &self.current_images.description
+            })
+            .size(20)
+            .font(iced::font::Font::MONOSPACE),
+            images_grid(&self.current_images.frames, 3)
         ];
 
         container(content)
