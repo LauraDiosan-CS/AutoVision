@@ -1,5 +1,6 @@
 import json
 import os
+import struct
 
 import cv2
 import numpy as np
@@ -10,6 +11,52 @@ from perception.filters.base_filter import BaseFilter
 from perception.objects.pipeline_config_types import PipelineConfig, JSONPipelinesTYPE, FILTER_CLASS_LOOKUP
 from perception.objects.video_info import VideoInfo, VideoRois
 
+def pack_named_images(items: list[tuple[str, np.ndarray]]) -> bytearray:
+    """
+    Packs (name, image) tuples into a single bytearray.
+    Layout: [64s name][u32 width][u32 height][u32 channels][pixel bytes]...
+    """
+    # 64s: 64 char bytes, I: uint32
+    HEADER_FORMAT = '=64sIII'
+    HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
+
+    # 1. Pre-calculate total size
+    total_size = 0
+    for _, img in items:
+        total_size += HEADER_SIZE + img.nbytes
+
+    # 2. Allocate single contiguous buffer
+    buffer = bytearray(total_size)
+    current_offset = 0
+
+    for name, img in items:
+        # 3. Analyze dimensions
+        height, width = img.shape[0], img.shape[1]
+
+        # Handle Channels: If shape is (H,W), channels=1. If (H,W,C), channels=C
+        channels = 1 if img.ndim == 2 else img.shape[2]
+
+        # 4. Prepare Name (Encode -> Truncate -> Pack handles padding)
+        name_bytes = name.encode('utf-8')
+        # Ensure we don't overflow the 64 byte limit
+        if len(name_bytes) > 64:
+            name_bytes = name_bytes[:64]
+
+        # 5. Pack Header
+        # '64s' automatically pads with null bytes if len < 64
+        struct.pack_into(HEADER_FORMAT, buffer, current_offset,
+                         name_bytes, width, height, channels)
+
+        current_offset += HEADER_SIZE
+
+        # 6. Copy Pixel Data (Zero-copy from numpy to buffer)
+        flat_img = img.ravel()
+        data_len = flat_img.nbytes
+        buffer[current_offset : current_offset + data_len] = memoryview(flat_img)
+
+        current_offset += data_len
+
+    return buffer
 
 def parse_pipeline_configuration(JSON_pipelines_config: JSONPipelinesTYPE, video_info: VideoInfo,
                                  models_dir_path: str, enable_pipeline_visualization: bool = True) -> list[PipelineConfig]:
