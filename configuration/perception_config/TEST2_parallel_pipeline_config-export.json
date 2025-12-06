@@ -1,0 +1,20 @@
+[
+  {
+    "roi": {
+      "roi_type": "signs",
+      "visualize": false
+    }
+  },
+  {
+    "roi": {
+      "roi_type": "traffic_lights",
+      "visualize": false
+    }
+  },
+  {
+    "pedestrian_detect": {
+      "model": "best_pedestrian.pt",
+      "visualize": true
+    }
+  }
+]

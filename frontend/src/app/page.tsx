@@ -138,24 +138,29 @@ export default function Home() {
     setEditorError(null);
   }, []);
 
-  const handleExport = useCallback(() => {
-    if (pipelines.length === 0) {
+  const handleExport = useCallback(async () => {
+    if (!window.showSaveFilePicker) {
+      alert("Your browser does not support Save As dialog.");
       return;
     }
 
     const serialized = serializePipelines(pipelines);
-    const blob = new Blob([JSON.stringify(serialized, null, 2)], {
-      type: "application/json",
+
+    const fileHandle = await window.showSaveFilePicker({
+      suggestedName: activeFileName
+        ? `${activeFileName.replace(/\.json$/i, "")}-export.json`
+        : "pipelines-export.json",
+      types: [
+        {
+          description: "JSON Files",
+          accept: { "application/json": [".json"] },
+        },
+      ],
     });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    const suggestedName = activeFileName
-      ? `${activeFileName.replace(/\.json$/i, "")}-export.json`
-      : "pipelines-export.json";
-    anchor.href = url;
-    anchor.download = suggestedName;
-    anchor.click();
-    URL.revokeObjectURL(url);
+
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(serialized, null, 2));
+    await writable.close();
   }, [activeFileName, pipelines]);
 
   const openCreateModule = useCallback(
