@@ -1,11 +1,12 @@
-mod grid;
 mod decoder;
+mod grid;
 mod image_reader;
 
 use crate::grid::images_grid;
-use crate::image_reader::{image_producer, Frames};
-use iced::widget::{column, container, text};
-use iced::{Element, Length, Task};
+use crate::image_reader::{Frames, image_producer};
+use iced::widget::pane_grid::Axis::Horizontal;
+use iced::widget::{column, container, image, text};
+use iced::{Alignment, Element, Length, Task};
 use rs_ipc::SharedMessageMapper;
 use std::process::{Child, Command};
 use std::sync::Arc;
@@ -49,12 +50,14 @@ impl Counter {
             .spawn()
             .expect("Failed to execute python3");
 
-        let initial_state = Self {
+        let mut initial_state = Self {
             child,
             frame: 0,
             current_images: Frames::default(),
             shared_memory: shared_memory.clone(),
         };
+
+        initial_state.current_images.description = String::from("Starting...");
 
         (initial_state, Task::stream(image_producer(shared_memory)))
     }
@@ -72,7 +75,7 @@ impl Counter {
     }
 
     fn view(&'_ self) -> Element<'_, Message> {
-        let content = column![
+        let mut content = column![
             text(if self.frame == u64::MAX {
                 "VIDEO FINISHED"
             } else {
@@ -80,12 +83,24 @@ impl Counter {
             })
             .size(20)
             .font(iced::font::Font::MONOSPACE),
-            images_grid(&self.current_images.frames, 3)
-        ];
+        ]
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
-        container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        let frames = &self.current_images.frames;
+        if !frames.is_empty() {
+            content = content.push(
+                image(self.current_images.frames[0].image.clone())
+                    .height(Length::FillPortion(2))
+                    .content_fit(iced::ContentFit::Contain),
+            );
+        }
+
+        if frames.len() > 1 {
+            content = content.push(images_grid(&self.current_images.frames[1..], 3));
+        }
+
+        content.into()
     }
 }
