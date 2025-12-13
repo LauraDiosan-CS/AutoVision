@@ -4,19 +4,20 @@ mod image_reader;
 
 use crate::grid::images_grid;
 use crate::image_reader::{Frames, image_producer};
-use iced::widget::{column, image, text};
+use iced::widget::{button, column, image, text};
 use iced::{Alignment, Element, Length, Task};
 use rs_ipc::SharedMessageMapper;
 use std::process::{Child, Command};
 use std::sync::Arc;
 
 fn main() -> iced::Result {
-    iced::application("AutoVision", AutoVision::update, AutoVision::view).run_with(AutoVision::new)
+    iced::application(AutoVision::new, AutoVision::update, AutoVision::view).title("AutoVision").run()
 }
 
 struct AutoVision {
     child: Child,
     frame: u64,
+    fullscreen: bool,
     current_images: Frames,
     shared_memory: Arc<SharedMessageMapper>,
 }
@@ -30,9 +31,10 @@ impl Drop for AutoVision {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Message {
     NewFrames(Frames),
+    ToggleFullscreen,
     VideoFinished,
 }
 
@@ -45,12 +47,12 @@ impl AutoVision {
 
         let child = Command::new("python3")
             .arg("main_rust.py")
-            // .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to execute python3");
 
         let mut initial_state = Self {
             child,
+            fullscreen: false,
             frame: 0,
             current_images: Frames::default(),
             shared_memory: shared_memory.clone(),
@@ -67,9 +69,8 @@ impl AutoVision {
                 self.frame += 1;
                 self.current_images = images;
             }
-            Message::VideoFinished => {
-                self.frame = u64::MAX;
-            }
+            Message::ToggleFullscreen => self.fullscreen = !self.fullscreen,
+            Message::VideoFinished => self.frame = u64::MAX,
         }
     }
 
@@ -89,14 +90,15 @@ impl AutoVision {
 
         let frames = &self.current_images.frames;
         if !frames.is_empty() {
-            content = content.push(
-                image(self.current_images.frames[0].image.clone())
-                    .height(Length::FillPortion(2))
-                    .content_fit(iced::ContentFit::Contain),
-            );
+            let main_image_handle = self.current_images.frames[0].image.clone();
+            let main_image = image(main_image_handle).height(Length::FillPortion(2));
+            let main_image_button = button(main_image)
+                .style(|_, _| button::Style::default())
+                .on_press(Message::ToggleFullscreen);
+            content = content.push(main_image_button);
         }
 
-        if frames.len() > 1 {
+        if !self.fullscreen && frames.len() > 1 {
             content = content.push(images_grid(&self.current_images.frames[1..], 3));
         }
 

@@ -1,7 +1,8 @@
 use crate::Message;
 use crate::image_reader::Frame;
 use iced::widget::container::background;
-use iced::widget::{Space, column, container, image, row, text};
+use iced::widget::space::horizontal;
+use iced::widget::{column, container, image, row, text};
 use iced::{Alignment, Background, Color, Element, Length, color};
 
 const BACKGROUND_COLORS: [Color; 6] = [
@@ -40,7 +41,7 @@ pub fn images_grid(frames: &'_ [Frame], column_count: usize) -> Element<'_, Mess
                 }));
 
                 for _ in 0..column_count - chunk.len() {
-                    r = r.push(Space::with_width(Length::Fill));
+                    r = r.push(horizontal());
                 }
 
                 r.into()

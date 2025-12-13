@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { git = "https://github.com/iced-rs/iced", features = ["winit", "image"], rev= "c9cd78e030d5b228f190af28d908e1fbcf8737ce" }
+iced = { git = "https://github.com/iced-rs/iced", default-features = false, features = ["thread-pool", "linux-theme-detection", "tiny-skia", "wayland", "image"] }
 rs_ipc = { path = "../rs_ipc", default-features = false }
