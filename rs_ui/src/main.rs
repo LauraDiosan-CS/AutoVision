@@ -4,25 +4,24 @@ mod image_reader;
 
 use crate::grid::images_grid;
 use crate::image_reader::{Frames, image_producer};
-use iced::widget::pane_grid::Axis::Horizontal;
-use iced::widget::{column, container, image, text};
+use iced::widget::{column, image, text};
 use iced::{Alignment, Element, Length, Task};
 use rs_ipc::SharedMessageMapper;
 use std::process::{Child, Command};
 use std::sync::Arc;
 
 fn main() -> iced::Result {
-    iced::application("AutoVision", Counter::update, Counter::view).run_with(Counter::new)
+    iced::application("AutoVision", AutoVision::update, AutoVision::view).run_with(AutoVision::new)
 }
 
-struct Counter {
+struct AutoVision {
     child: Child,
     frame: u64,
     current_images: Frames,
     shared_memory: Arc<SharedMessageMapper>,
 }
 
-impl Drop for Counter {
+impl Drop for AutoVision {
     fn drop(&mut self) {
         self.shared_memory.stop();
         if let Err(e) = self.child.wait() {
@@ -37,7 +36,7 @@ pub enum Message {
     VideoFinished,
 }
 
-impl Counter {
+impl AutoVision {
     fn new() -> (Self, Task<Message>) {
         let shared_memory = Arc::new(
             SharedMessageMapper::create(c"rust_ui".into(), 64 * 1024 * 1024)
