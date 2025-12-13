@@ -122,7 +122,7 @@ def display_behaviour(frame, behaviour: str):
     put_text(frame, f'Behaviour: {behaviour}', position=(10, 30), font_scale=font_scale, text_color=(0, 0, 255))
 
 
-def visualize_data(video_info: VideoInfo, data: PipeData, raw_frame: np.ndarray) -> np.ndarray:
+def visualize_data(video_info: VideoInfo, data: PipeData, raw_frame: np.ndarray, display_text: bool=True) -> np.ndarray:
     # Make a copy of the raw frame to draw on, as the original one is read-only due to shared memory
     frame = raw_frame.copy()
 
@@ -166,12 +166,13 @@ def visualize_data(video_info: VideoInfo, data: PipeData, raw_frame: np.ndarray)
 
             draw_correct_path(frame, car_position, upper_lane_center)
             draw_actual_path(frame, car_position, upper_lane_center)
-
-            if data.heading_error_degrees is not None:
-                put_text_with_background(frame, f'Heading Error: {int(data.heading_error_degrees)}deg', position=(10, 50),
-                                         font_scale=font_scale, thickness=text_thickness, text_color=(255, 255, 255), bg_color=(0, 0, 0))
-            if data.lateral_offset is not None:
-                put_text_with_background(frame, f'Lateral Offset: {data.lateral_offset * 100:.0f}%', position=(10, 90),
-                                            font_scale=font_scale, thickness=text_thickness, text_color=(255, 255, 255), bg_color=(0, 0, 0))
+            
+            if display_text:
+                if data.heading_error_degrees is not None:
+                    put_text_with_background(frame, f'Heading Error: {int(data.heading_error_degrees)}deg', position=(10, 50),
+                                             font_scale=font_scale, thickness=text_thickness, text_color=(255, 255, 255), bg_color=(0, 0, 0))
+                if data.lateral_offset is not None:
+                    put_text_with_background(frame, f'Lateral Offset: {data.lateral_offset * 100:.0f}%', position=(10, 90),
+                                                font_scale=font_scale, thickness=text_thickness, text_color=(255, 255, 255), bg_color=(0, 0, 0))
 
     return frame

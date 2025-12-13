@@ -5,8 +5,8 @@ use iced::widget::{Space, column, container, image, row, text};
 use iced::{Alignment, Background, Color, Element, Length, color};
 
 const BACKGROUND_COLORS: [Color; 6] = [
-    color!(90, 156, 181),
     color!(250, 206, 104),
+    color!(90, 156, 181),
     color!(250, 104, 104),
     color!(250, 172, 104),
     color!(255, 205, 201),
