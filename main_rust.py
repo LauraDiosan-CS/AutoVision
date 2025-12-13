@@ -28,16 +28,7 @@ def main():
         final_frame_version=final_frame_version,
         name="MultiProcessingManager",
     )
-    mp_manager.start()
-    print("[Main] MultiProcessingManager started")
-
-    while keep_running.value:
-        time.sleep(1)
-
-    print("[Main] Joining MultiProcessingManager")
-    mp_manager.join()
-    print("[Main] MultiProcessingManager joined")
-
+    mp_manager.run()
 
 def setup_dir_for_iteration():
     os.makedirs(Config.recordings_dir, exist_ok=True)
