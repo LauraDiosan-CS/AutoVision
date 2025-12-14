@@ -60,7 +60,18 @@ export const parsePipelines = (raw: unknown): PipelineLane[] => {
       throw new Error(`Lane ${laneIndex + 1} must be an object.`);
     }
 
-    const entries = Object.entries(lane as Record<string, unknown>);
+    const laneRecord = lane as Record<string, unknown>;
+    const filtersCandidate = laneRecord.filters;
+    const hasFilterGroup =
+      filtersCandidate &&
+      typeof filtersCandidate === "object" &&
+      !Array.isArray(filtersCandidate);
+
+    const moduleSource = hasFilterGroup
+      ? (filtersCandidate as Record<string, unknown>)
+      : laneRecord;
+
+    const entries = Object.entries(moduleSource);
 
     if (entries.length === 0) {
       throw new Error(`Lane ${laneIndex + 1} cannot be empty.`);
@@ -80,10 +91,17 @@ export const parsePipelines = (raw: unknown): PipelineLane[] => {
       } satisfies PipelineModule;
     });
 
-    const roiCandidate = (lane as Record<string, unknown>).roi;
+    const roiCandidate = moduleSource.roi;
+    const hasExplicitName =
+      hasFilterGroup && typeof laneRecord.name === "string";
     let label = `Lane ${laneIndex + 1}`;
 
-    if (
+    if (hasExplicitName) {
+      const trimmedName = (laneRecord.name as string).trim();
+      if (trimmedName) {
+        label = trimmedName;
+      }
+    } else if (
       roiCandidate &&
       typeof roiCandidate === "object" &&
       !Array.isArray(roiCandidate)
@@ -104,9 +122,13 @@ export const parsePipelines = (raw: unknown): PipelineLane[] => {
 
 export const serializePipelines = (pipelines: PipelineLane[]) =>
   pipelines.map((lane) => {
-    const lanePayload: Record<string, unknown> = {};
+    const filters: Record<string, unknown> = {};
     lane.modules.forEach((module) => {
-      lanePayload[module.name] = module.config;
+      filters[module.name] = module.config;
     });
-    return lanePayload;
+
+    return {
+      name: lane.label,
+      filters,
+    };
   });
