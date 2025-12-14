@@ -32,10 +32,17 @@ export default function Home() {
   const [pipelines, setPipelines] = useState<PipelineLane[]>([]);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [activeFileName, setActiveFileName] = useState<string>("");
+  const [lastImportedSnapshot, setLastImportedSnapshot] = useState<string | null>(
+    null
+  );
   const dragOriginRef = useRef<DragPosition | null>(null);
   const [editorState, setEditorState] =
     useState<ModuleEditorStateNullable>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
+
+  const getSerializedSnapshot = useCallback((lanes: PipelineLane[]) => {
+    return JSON.stringify(serializePipelines(lanes));
+  }, []);
 
   const createPlaceholderModule = useCallback(() => {
     const accent =
@@ -55,10 +62,35 @@ export default function Home() {
     setPipelines([]);
     setWorkspaceError(null);
     setActiveFileName("");
+    setLastImportedSnapshot(null);
   }, []);
 
   const importJson = useCallback(
     async (file: File) => {
+      const hasUnsavedChanges = (() => {
+        if (!lastImportedSnapshot) return false;
+
+        try {
+          return getSerializedSnapshot(pipelines) !== lastImportedSnapshot;
+        } catch (error) {
+          console.error("Failed to compare pipeline snapshots", error);
+          return true;
+        }
+      })();
+
+      if (hasUnsavedChanges) {
+        const isSameFile = activeFileName && file.name === activeFileName;
+        const confirmed = window.confirm(
+          isSameFile
+            ? "You have unsaved changes for this file. Reimporting will discard your edits. Continue?"
+            : "You have unsaved changes in the current workspace. Importing will discard them. Continue?"
+        );
+
+        if (!confirmed) {
+          return false;
+        }
+      }
+
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
@@ -66,6 +98,8 @@ export default function Home() {
         setPipelines(nextPipelines);
         setWorkspaceError(null);
         setActiveFileName(file.name);
+        setLastImportedSnapshot(getSerializedSnapshot(nextPipelines));
+        return true;
       } catch (error) {
         console.error(error);
         resetWorkspace();
@@ -74,9 +108,16 @@ export default function Home() {
             ? error.message
             : "Unable to read the selected file."
         );
+        return false;
       }
     },
-    [resetWorkspace]
+    [
+      activeFileName,
+      getSerializedSnapshot,
+      lastImportedSnapshot,
+      pipelines,
+      resetWorkspace,
+    ]
   );
 
   const handleDragStart = useCallback<HandleDragStart>(
@@ -362,7 +403,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <main className="mx-auto flex w-max max-w-11/12 flex-col gap-10 px-6 py-12">
-        <AppHeader importJson={importJson} />
+        <AppHeader importJson={importJson} activeFileName={activeFileName} />
         {workspaceError && (
           <p className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {workspaceError}

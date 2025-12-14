@@ -4,19 +4,23 @@ import { useCallback, useState, type ChangeEvent, type DragEvent } from "react";
 import { UploadDropzone } from "@/components/UploadDropzone";
 
 interface AppHeaderProps {
-  importJson: (file: File) => Promise<void>;
+  importJson: (file: File) => Promise<boolean>;
+  activeFileName: string;
 }
 
-export function AppHeader({ importJson }: AppHeaderProps) {
+export function AppHeader({ importJson, activeFileName }: AppHeaderProps) {
   const [isDragActive, setIsDragActive] = useState(false);
-  const [activeFileName, setActiveFileName] = useState("");
 
   const handleFileSelection = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      setActiveFileName(file.name);
-      await importJson(file);
+      const wasImported = await importJson(file);
+      if (!wasImported) {
+        event.target.value = "";
+        return;
+      }
+      event.target.value = "";
     },
     [importJson]
   );
@@ -39,7 +43,6 @@ export function AppHeader({ importJson }: AppHeaderProps) {
       setIsDragActive(false);
       const file = event.dataTransfer.files?.[0];
       if (!file) return;
-      setActiveFileName(file.name);
       await importJson(file);
     },
     [importJson]
