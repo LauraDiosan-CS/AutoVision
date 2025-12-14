@@ -8,8 +8,8 @@ use iced::{Alignment, Background, Color, Element, Length, color};
 const BACKGROUND_COLORS: [Color; 6] = [
     color!(250, 206, 104),
     color!(90, 156, 181),
-    color!(250, 104, 104),
     color!(250, 172, 104),
+    color!(250, 104, 104),
     color!(255, 205, 201),
     color!(119, 136, 115),
 ];
@@ -24,6 +24,7 @@ pub fn images_grid(frames: &'_ [Frame], column_count: usize) -> Element<'_, Mess
                     let index = (chunk_index * column_count) + row_index;
                     container(column![
                         text(&frame.name)
+                            .color(Color::BLACK)
                             .width(Length::Fill)
                             .align_x(Alignment::Center),
                         image(frame.image.clone())

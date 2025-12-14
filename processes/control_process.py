@@ -50,7 +50,7 @@ class Control(mp.Process):
                     "longitudinal_velocity": 1.0,
                 }
 
-                print(f"[Controller] Sending control data: {json_data}")
+                # print(f"[Controller] Sending control data: {json_data}")
         except Exception as e:
             print(f"[Controller] Error: {e}")
             self.keep_running.value = False
