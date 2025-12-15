@@ -23,16 +23,18 @@ from processes.video_writer_process import VideoWriterProcess
 
 
 class MultiProcessingManager(mp.Process):
-    __slots__ = ["keep_running", "start_video", "recording_dir_path"]
+    __slots__ = ["keep_running", "start_video", "recording_dir_path", "final_frame_version", "callback"]
 
     def __init__(
-        self,
-        program_start_time: float,
-        keep_running: mp.Value,
-        start_video: mp.Value,
-        recording_dir_path: str,
-        final_frame_version: mp.Value,
-        name=None,
+            self,
+            program_start_time: float,
+            keep_running: mp.Value,
+            start_video: mp.Value,
+            recording_dir_path: str,
+            final_frame_version: mp.Value,
+            callback=None,
+            frame_class=None,
+            name=None,
     ):
         super().__init__(name=name)
         self.keep_running = keep_running
@@ -40,6 +42,8 @@ class MultiProcessingManager(mp.Process):
         self.recording_dir_path = recording_dir_path
         self.final_frame_version = final_frame_version
         self.program_start_time = program_start_time
+        self.callback = callback
+        self.PyFrame = frame_class
 
     def run(self):
         video_feed_shm = SharedMessage.create(
@@ -156,9 +160,7 @@ class MultiProcessingManager(mp.Process):
             video_rois=video_rois,
         )
 
-        rust_ui = SharedMessage.open(
-            "rust_ui", OperationMode.WriteAsync
-        )
+        time_list = []
         iteration_counter = 0
         while self.keep_running.value:
             pipe_data_list: list[PipeData | None] = read_all_map(
@@ -182,30 +184,37 @@ class MultiProcessingManager(mp.Process):
                     if not control_loop_shm.is_stopped():
                         control_loop_shm.write(pickled_pipe_data)
 
-                    if not rust_ui.is_stopped():
-                        display_frames = []
-                        if current_pipe_data.raw_frame is not None:
-                            drawn_frame = visualize_data(
-                                video_info=video_info, data=current_pipe_data, raw_frame=current_pipe_data.raw_frame, display_text=False
-                            )
-                            display_frames.append(("Main", drawn_frame))
+                    display_frames = []
+                    if current_pipe_data.raw_frame is not None:
+                        image = visualize_data(
+                            video_info=video_info, data=current_pipe_data, raw_frame=current_pipe_data.raw_frame, display_text=False
+                        )
+                        h, w = image.shape[:2]
+                        c = 1 if len(image.shape) == 2 else image.shape[2]
+                        display_frames.append(self.PyFrame("Main", image.ravel().tobytes(), w, h, c))
 
-                        if new_pipe_data.processed_frames is not None and len(new_pipe_data.processed_frames) > 0:
-                            for name, pipeline_images in new_pipe_data.processed_frames.items():
-                                for (index, image) in enumerate(pipeline_images):
-                                    display_frames.append((f"{name} {index}", image))
+                    if new_pipe_data.processed_frames is not None and len(new_pipe_data.processed_frames) > 0:
+                        for name, pipeline_images in new_pipe_data.processed_frames.items():
+                            for (index, image) in enumerate(pipeline_images):
+                                h, w = image.shape[:2]
+                                c = 1 if len(image.shape) == 2 else image.shape[2]
+                                display_frames.append(self.PyFrame(f"{name} {index}", image.ravel().tobytes(), w, h, c))
 
-                        description = f"Frame: {current_pipe_data.frame_version}; Heading error: {int(current_pipe_data.heading_error_degrees)}°; Lateral Offset: {int(current_pipe_data.lateral_offset * 100)}%"
-                        images_bytes = bytes(pack_named_images(description, display_frames))
-                        # print(time.perf_counter() - start_time1)
-                        if len(images_bytes) >= rust_ui.payload_max_size():
-                            print("[Main] Images to visualize too big")
-                        rust_ui.write(images_bytes)
+                    x = time.perf_counter_ns()
+                    description = f"Frame: {current_pipe_data.frame_version}; Heading error: {int(current_pipe_data.heading_error_degrees)}°; Lateral Offset: {int(current_pipe_data.lateral_offset * 100)}%"
+                    should_continue = self.callback.send_frames(description, display_frames)
+                    end = (time.perf_counter_ns() - x)/1000000.0
+                    time_list.append(end)
+                    print(sum(time_list) / len(time_list))
+                    if not should_continue:
+                        print("[MPManager] Stop signal received from Rust")
+                        self.keep_running.value = False
+                        break
 
                     if (
-                        Config.save_processed_video
-                        and save_shm_queue
-                        and not save_shm_queue.is_stopped()
+                            Config.save_processed_video
+                            and save_shm_queue
+                            and not save_shm_queue.is_stopped()
                     ):
                         save_shm_queue.write(pickled_pipe_data)
 
@@ -214,8 +223,8 @@ class MultiProcessingManager(mp.Process):
                     del new_pipe_data
 
             if current_pipe_data.frame_version == self.final_frame_version.value:
-                    print(f"[Main] Received final frame version: {current_pipe_data.frame_version}")
-                    self.keep_running.value = False
+                print(f"[Main] Received final frame version: {current_pipe_data.frame_version}")
+                self.keep_running.value = False
 
         if save_shm_queue:
             save_shm_queue.stop()
@@ -253,7 +262,7 @@ class MultiProcessingManager(mp.Process):
             video_writer_process.join()
             print("[MPManager] VideoWriterProcess joined")
 
-        rust_ui.stop()
+        self.callback.stop()
 
 
 def deserialize_pipe_data(pipe_data_bytes: bytes) -> PipeData:

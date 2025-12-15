@@ -6,9 +6,7 @@ use crate::grid::images_grid;
 use crate::image_reader::{Frames, image_producer};
 use iced::widget::{button, column, image, text};
 use iced::{Alignment, Element, Length, Task};
-use rs_ipc::SharedMessageMapper;
 use std::process::{Child, Command};
-use std::sync::Arc;
 
 fn main() -> iced::Result {
     iced::application(AutoVision::new, AutoVision::update, AutoVision::view).title("AutoVision").run()
@@ -19,12 +17,10 @@ struct AutoVision {
     frame: u64,
     fullscreen: bool,
     current_images: Frames,
-    shared_memory: Arc<SharedMessageMapper>,
 }
 
 impl Drop for AutoVision {
     fn drop(&mut self) {
-        self.shared_memory.stop();
         if let Err(e) = self.child.wait() {
             eprintln!("Error waiting Python process: {}", e);
         }
@@ -40,11 +36,6 @@ pub enum Message {
 
 impl AutoVision {
     fn new() -> (Self, Task<Message>) {
-        let shared_memory = Arc::new(
-            SharedMessageMapper::create(c"rust_ui".into(), 64 * 1024 * 1024)
-                .expect("Can't create shared memory"),
-        );
-
         let child = Command::new("python3")
             .arg("main_rust.py")
             .spawn()
@@ -55,12 +46,11 @@ impl AutoVision {
             fullscreen: false,
             frame: 0,
             current_images: Frames::default(),
-            shared_memory: shared_memory.clone(),
         };
 
         initial_state.current_images.description = String::from("Starting...");
 
-        (initial_state, Task::stream(image_producer(shared_memory)))
+        (initial_state, Task::stream(image_producer()))
     }
 
     fn update(&mut self, message: Message) {

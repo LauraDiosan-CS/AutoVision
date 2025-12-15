@@ -584,8 +584,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "173852283a9a57a3cbe365d86e74dc428a09c50421477d5ad6fe9d9509e37737"
+source = "git+https://github.com/pop-os/cosmic-text.git?rev=a07a6190548c8e40a55f6b7761387047ff1bf6ff#a07a6190548c8e40a55f6b7761387047ff1bf6ff"
 dependencies = [
  "bitflags 2.10.0",
  "fontdb",
@@ -648,8 +647,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "cryoglyph"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08bc795bdbccdbd461736fb163930a009da6597b226d6f6fce33e7a8eb6ec519"
+source = "git+https://github.com/iced-rs/cryoglyph.git?rev=89883bcf38b5bed0d7bade788ef738d9facc857c#89883bcf38b5bed0d7bade788ef738d9facc857c"
 dependencies = [
  "cosmic-text",
  "etagere",
@@ -1141,6 +1139,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hermit-abi"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1161,7 +1165,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "iced"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "iced_core",
  "iced_debug",
@@ -1177,7 +1181,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "bitflags 2.10.0",
  "bytes",
@@ -1194,7 +1198,7 @@ dependencies = [
 [[package]]
 name = "iced_debug"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1204,7 +1208,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "futures",
  "iced_core",
@@ -1217,7 +1221,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
@@ -1237,7 +1241,7 @@ dependencies = [
 [[package]]
 name = "iced_program"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -1246,7 +1250,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1258,7 +1262,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "bytes",
  "iced_core",
@@ -1270,7 +1274,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1286,7 +1290,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
@@ -1305,7 +1309,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "iced_renderer",
  "log",
@@ -1318,7 +1322,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.15.0-dev"
-source = "git+https://github.com/iced-rs/iced#c532ad216b1ed9398775a1ad95234165aa5ee649"
+source = "git+https://github.com/iced-rs/iced?rev=8f35374021964a2715f8a2ca3a22b5c9b39d09f9#8f35374021964a2715f8a2ca3a22b5c9b39d09f9"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -1381,6 +1385,15 @@ checksum = "0ad4bb2b565bca0645f4d68c5c9af97fba094e9791da685bf83cb5f3ce74acf2"
 dependencies = [
  "equivalent",
  "hashbrown",
+]
+
+[[package]]
+name = "indoc"
+version = "2.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]
@@ -2402,6 +2415,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab53c047fcd1a1d2a8820fe84f05d6be69e9526be40cb03b73f86b6b03e6d87d"
+dependencies = [
+ "indoc",
+ "libc",
+ "memoffset",
+ "once_cell",
+ "portable-atomic",
+ "pyo3-build-config",
+ "pyo3-ffi",
+ "pyo3-macros",
+ "unindent",
+]
+
+[[package]]
+name = "pyo3-build-config"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b455933107de8642b4487ed26d912c2d899dec6114884214a0b3bb3be9261ea6"
+dependencies = [
+ "target-lexicon",
+]
+
+[[package]]
+name = "pyo3-ffi"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c85c9cbfaddf651b1221594209aed57e9e5cff63c4d11d1feead529b872a089"
+dependencies = [
+ "libc",
+ "pyo3-build-config",
+]
+
+[[package]]
+name = "pyo3-macros"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a5b10c9bf9888125d917fb4d2ca2d25c8df94c7ab5a52e13313a07e050a3b02"
+dependencies = [
+ "proc-macro2",
+ "pyo3-macros-backend",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "pyo3-macros-backend"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03b51720d314836e53327f5871d4c0cfb4fb37cc2c4a11cc71907a86342c40f9"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "pyo3-build-config",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "qoi"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2590,18 +2664,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
-name = "rs_ipc"
-version = "0.1.0"
-dependencies = [
- "rustix 1.1.2",
-]
-
-[[package]]
 name = "rs_ui"
 version = "0.1.0"
 dependencies = [
  "iced",
- "rs_ipc",
+ "pyo3",
 ]
 
 [[package]]
@@ -2863,6 +2930,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "target-lexicon"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df7f62577c25e07834649fc3b39fafdc597c0a3527dc1c60129201ccfcbaa50c"
+
+[[package]]
 name = "tempfile"
 version = "3.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2872,7 +2945,7 @@ dependencies = [
  "getrandom",
  "once_cell",
  "rustix 1.1.2",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3098,6 +3171,12 @@ name = "unicode-width"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
+
+[[package]]
+name = "unindent"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7264e107f553ccae879d21fbea1d6724ac785e8c3bfc762137959b5802826ef3"
 
 [[package]]
 name = "uuid"

@@ -6,10 +6,13 @@ from datetime import datetime
 from configuration.config import Config
 from processes.multiprocessing_manager_rust_ui import MultiProcessingManager
 
-def main():
+def run_from_rust(rust_callback, PyFrame):
     program_start_time = time.perf_counter()
-    mp.set_start_method("spawn")
-    # print("[Main] Config:", Config.as_json())
+    # Important: Start method must be spawn for mixing embedded Python with multiprocessing
+    try:
+        mp.set_start_method("spawn", force=True)
+    except RuntimeError:
+        pass # Context might already be set
 
     recording_dir_path = setup_dir_for_iteration()
 
@@ -24,6 +27,8 @@ def main():
         start_video=start_video,
         recording_dir_path=recording_dir_path,
         final_frame_version=final_frame_version,
+        callback=rust_callback,
+        frame_class=PyFrame,
         name="MultiProcessingManager",
     )
     mp_manager.run()
@@ -39,7 +44,3 @@ def setup_dir_for_iteration():
     with open(os.path.join(recording_dir_path, "config.json"), "w") as file:
         file.write(Config.as_json())
     return recording_dir_path
-
-
-if __name__ == "__main__":
-    main()

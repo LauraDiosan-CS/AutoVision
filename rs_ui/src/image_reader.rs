@@ -1,14 +1,13 @@
+use crate::decoder::{bgr_to_rgba, grayscale_to_rgba};
 use crate::Message;
-use crate::decoder::{bgr_to_rgba, decode_named_images, grayscale_to_rgba};
 use iced::futures;
-use iced::futures::SinkExt;
 use iced::futures::channel::mpsc;
 use iced::widget::image;
-use rs_ipc::SharedMessageMapper;
+use pyo3::prelude::PyAnyMethods;
+use pyo3::types::PyBytes;
+use pyo3::{pyclass, pymethods, Py, PyRef, Python};
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::thread;
-use std::time::Instant;
 
 #[derive(Debug, Clone, Default)]
 pub struct Frames {
@@ -22,87 +21,139 @@ pub struct Frame {
     pub image: image::Handle,
 }
 
-pub fn image_producer(
-    shared_memory: Arc<SharedMessageMapper>,
-) -> impl futures::Stream<Item = Message> {
-    let (mut sender, receiver) = mpsc::channel(1);
+#[pyclass]
+struct FrameReceiver {
+    sender: mpsc::UnboundedSender<Message>,
+    cache: BTreeMap<String, image::Handle>,
+}
 
-    thread::spawn(move || {
-        shared_memory.add_reader();
+#[pyclass]
+pub struct PyFrame {
+    pub name: String,
+    pub bytes: Py<PyBytes>, // Keeps reference to Python bytes without copying
+    pub width: u32,
+    pub height: u32,
+    pub channels: u8,
+}
 
-        let mut cache = BTreeMap::new();
-        let mut last_read_version = 0;
+#[pymethods]
+impl PyFrame {
+    #[new]
+    fn new(name: String, bytes: Py<PyBytes>, width: u32, height: u32, channels: u8) -> Self {
+        PyFrame {
+            name,
+            bytes,
+            width,
+            height,
+            channels,
+        }
+    }
+}
 
-        while !shared_memory.is_stopped() {
-            let mut result = None;
-
-            let mut start = Instant::now();
-            shared_memory.blocking_read(last_read_version, |new_version, data| {
-                last_read_version = new_version;
-
-                start = Instant::now();
-                let decoded = decode_named_images(data);
-                let frames: Vec<_> = decoded
-                    .images
-                    .into_iter()
-                    .map(|image| Frame {
-                        name: image.name.to_string(),
-                        image: image::Handle::from_rgba(
-                            image.width,
-                            image.height,
-                            match image.channels {
-                                1 => grayscale_to_rgba(image.pixels),
-                                3 => bgr_to_rgba(image.pixels),
-                                _ => {
-                                    panic!("Unknown image format with {} channels", image.channels)
-                                }
-                            },
-                        ),
-                    })
-                    .collect();
-
-                result = Some(Frames {
-                    description: decoded.description.to_string(),
-                    frames,
-                });
-            });
-
-            let Some(result) = result else {
-                continue;
-            };
-            println!("{:?}", start.elapsed());
-
-            // Cache the items
-            for frame in result.frames {
-                cache.insert(frame.name, frame.image);
-            }
-
-            let main_frame_name = "Main";
-            let mut frames: Vec<_> = cache
-                .iter()
-                .map(|(name, image)| Frame {
-                    name: name.clone(),
-                    image: image.clone(),
-                })
-                .collect();
-            if let Some(index) = frames
-                .iter()
-                .position(|frame| frame.name == main_frame_name)
-            {
-                let element = frames.remove(index);
-                frames.insert(0, element);
-            }
-            let frames = Frames {
-                description: result.description,
-                frames,
-            };
-
-            if futures::executor::block_on(sender.send(Message::NewFrames(frames))).is_err() {
-                break;
-            }
+#[pymethods]
+impl FrameReceiver {
+    fn send_frames(
+        &mut self,
+        py: Python<'_>,
+        description: String,
+        raw_frames: Vec<PyRef<PyFrame>>,
+    ) -> bool {
+        if self.sender.is_closed() {
+            return false;
         }
 
-        let _ = futures::executor::block_on(sender.send(Message::VideoFinished));
+        for py_frame in raw_frames {
+            let pixel_data = py_frame.bytes.as_bytes(py);
+
+            let expected_size = py_frame.width as usize * py_frame.height as usize * py_frame.channels as usize;
+            if pixel_data.len() != expected_size {
+                eprintln!("Invalid image size: {} instead of {} ({})", pixel_data.len(), expected_size, py_frame.name);
+                continue;
+            }
+
+            let handle = image::Handle::from_rgba(
+                py_frame.width,
+                py_frame.height,
+                match py_frame.channels {
+                    1 => grayscale_to_rgba(pixel_data),
+                    3 => bgr_to_rgba(pixel_data),
+                    4 => pixel_data.to_vec().into_boxed_slice(),
+                    _ => {
+                        eprintln!(
+                            "Invalid image ({}) with {} channels",
+                            py_frame.name, py_frame.channels
+                        );
+                        continue;
+                    }
+                },
+            );
+
+            self.cache.insert(py_frame.name.clone(), handle);
+        }
+
+        let main_frame_name = "Main";
+        let mut frames: Vec<_> = self
+            .cache
+            .iter()
+            .map(|(name, image)| Frame {
+                name: name.clone(),
+                image: image.clone(),
+            })
+            .collect();
+        if let Some(index) = frames
+            .iter()
+            .position(|frame| frame.name == main_frame_name)
+        {
+            let element = frames.remove(index);
+            frames.insert(0, element);
+        }
+        let frames = Frames {
+            description,
+            frames,
+        };
+
+        if self.sender.unbounded_send(Message::NewFrames(frames)).is_err() {
+            return false;
+        }
+
+        true
+    }
+
+    fn stop(&mut self) {
+        let _ = self.sender.unbounded_send(Message::VideoFinished);
+    }
+
+    fn is_stopped(&self) -> bool {
+        self.sender.is_closed()
+    }
+}
+
+pub fn image_producer() -> impl futures::Stream<Item = Message> {
+    let (sender, receiver) = mpsc::unbounded();
+
+    thread::spawn(move || {
+        Python::attach(|py| {
+            let sys = py.import("sys").expect("Failed to import sys");
+            let paths = sys.getattr("path").expect("Failed to get path");
+            if let Err(e) = paths.call_method1("append", (".",)) {
+                eprintln!("Failed to append path: {}", e);
+                return;
+            }
+
+            let main_module = py.import("main_rust").expect("Failed to import");
+
+            let callback = FrameReceiver {
+                sender,
+                cache: BTreeMap::new(),
+            };
+            let py_callback = Py::new(py, callback).expect("Failed to create Py callback");
+
+            let py_frame_cls = py.get_type::<PyFrame>();
+
+            main_module
+                .call_method1("run_from_rust", (py_callback, py_frame_cls))
+                .expect("Failed to call run_from_rust");
+        });
     });
 
     receiver

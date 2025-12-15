@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { git = "https://github.com/iced-rs/iced", default-features = false, features = ["thread-pool", "linux-theme-detection", "tiny-skia", "x11", "image"] }
-rs_ipc = { path = "../rs_ipc", default-features = false }
+iced = { git = "https://github.com/iced-rs/iced", rev = "8f35374021964a2715f8a2ca3a22b5c9b39d09f9", default-features = false, features = ["thread-pool", "linux-theme-detection", "tiny-skia", "x11", "image"] }
+pyo3 = { version = "0.27.2", features = ["auto-initialize"] }
