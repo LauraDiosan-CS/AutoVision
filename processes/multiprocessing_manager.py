@@ -3,8 +3,6 @@ import os
 import pickle
 import time
 
-from perception.objects.video_info import VideoRois, VideoInfo
-from perception.visualize_data import visualize_data
 from rs_ipc import (
     SharedMessage,
     OperationMode,
@@ -13,7 +11,7 @@ from rs_ipc import (
 )
 
 from configuration.config import Config, ProcessingStrategy
-from perception.helpers import initialize_config, get_roi_bbox_for_video, pack_named_images
+from perception.helpers import initialize_config
 from perception.objects.pipe_data import PipeData
 from perception.objects.save_info import SaveInfo
 from processes.control_process import Control
@@ -42,218 +40,192 @@ class MultiProcessingManager(mp.Process):
         self.program_start_time = program_start_time
 
     def run(self):
-        video_feed_shm = SharedMessage.create(
-            name=Config.video_feed_memory_name,
-            size=Config.frame_size,
-            mode=OperationMode.CreateOnly,
-            reader_wait_policy=ReaderWaitPolicy.All()
-            if Config.processing_strategy
-               == ProcessingStrategy.ALL_FRAMES_ALL_PROCESSES
-            else ReaderWaitPolicy.Count(1)
-        )
-        control_loop_shm = SharedMessage.create(
-            name=Config.control_loop_memory_name,
-            size=Config.max_pipe_data_size,
-            mode=OperationMode.WriteAsync,
-            reader_wait_policy=ReaderWaitPolicy.Count(0)
-        )
-
-        save_shm_queue = None
-        video_writer_process = None
-        if Config.save_processed_video:
-            save_shm_queue = SharedMessage.create(
-                Config.save_final_memory_name,
-                Config.max_pipe_data_size,
+        try:
+            video_feed_shm = SharedMessage.create(
+                name=Config.video_feed_memory_name,
+                size=Config.frame_size,
+                mode=OperationMode.CreateOnly,
+                reader_wait_policy=ReaderWaitPolicy.All()
+                if Config.processing_strategy
+                   == ProcessingStrategy.ALL_FRAMES_ALL_PROCESSES
+                else ReaderWaitPolicy.Count(1)
+            )
+            control_loop_shm = SharedMessage.create(
+                name=Config.control_loop_memory_name,
+                size=Config.max_pipe_data_size,
+                mode=OperationMode.WriteAsync,
+                reader_wait_policy=ReaderWaitPolicy.Count(0)
+            )
+            visualization_shm = SharedMessage.open(
+                Config.visualization_memory_name,
                 OperationMode.WriteAsync,
-                ReaderWaitPolicy.All()
-            )  # ReadAsync will make it operate like a queue, as long as the writer side has ReaderWaitPolicy active
-
-            video_name = os.path.splitext(Config.video_name)[0]
-
-            save_info = SaveInfo(
-                video_path=os.path.join(
-                    self.recording_dir_path, f"Final_{video_name}.mp4"
-                ),
-                width=Config.width,
-                height=Config.height,
-                fps=Config.output_fps,
             )
 
-            video_writer_process = VideoWriterProcess(
-                save_info=save_info,
-                shared_memory_name=Config.save_final_memory_name,
-                keep_running=self.keep_running,
-                program_start_time=self.program_start_time,
-                name="VideoWriterProcess",
-            )
-            video_writer_process.start()
-
-        pipelines, _, _ = initialize_config(Config.enable_pipeline_visualization)
-
-        pipeline_processes: list[tuple[mp.Process, mp.Pipe]] = []
-        pipeline_shm_list = []
-
-        for index, pipeline in enumerate(pipelines):
-            pipeline_shm_list.append(
-                SharedMessage.create(
-                    Config.shm_base_name + pipeline.name,
+            save_shm_queue = None
+            video_writer_process = None
+            if Config.save_processed_video:
+                save_shm_queue = SharedMessage.create(
+                    Config.save_final_memory_name,
                     Config.max_pipe_data_size,
-                    OperationMode.ReadSync,
-                    ReaderWaitPolicy.Count(0)
+                    OperationMode.WriteAsync,
+                    ReaderWaitPolicy.All()
+                )  # ReadAsync will make it operate like a queue, as long as the writer side has ReaderWaitPolicy active
+
+                video_name = os.path.splitext(Config.video_name)[0]
+
+                save_info = SaveInfo(
+                    video_path=os.path.join(
+                        self.recording_dir_path, f"Final_{video_name}.mp4"
+                    ),
+                    width=Config.width,
+                    height=Config.height,
+                    fps=Config.output_fps,
                 )
-            )
 
-            debug_pipe, child_debug_pipe = mp.Pipe()
-            artificial_delay = 0.0
+                video_writer_process = VideoWriterProcess(
+                    save_info=save_info,
+                    shared_memory_name=Config.save_final_memory_name,
+                    keep_running=self.keep_running,
+                    program_start_time=self.program_start_time,
+                    name="VideoWriterProcess",
+                )
+                video_writer_process.start()
 
-            process = SequentialFilterProcess(
-                filters=pipeline.filters,
-                keep_running=self.keep_running,
-                debug_pipe=child_debug_pipe,
-                artificial_delay=artificial_delay,
-                process_name=pipeline.name,
-                program_start_time=self.program_start_time,
-            )
+            pipelines, _, _ = initialize_config(Config.enable_pipeline_visualization)
 
-            process.start()
-            pipeline_processes.append((process, debug_pipe))
-        print("[MPManager] All parallel processes started")
+            pipeline_processes: list[tuple[mp.Process, mp.Pipe]] = []
+            pipeline_shm_list = []
 
-        camera_process = MockCameraProcess(
-            start_video=self.start_video,
-            keep_running=self.keep_running,
-            program_start_time=self.program_start_time,
-            final_frame_version=self.final_frame_version,
-            name="CameraProcess",
-        )
-        camera_process.start()
-        print("[MPManager] CameraProcess started")
-
-        control_process = Control(self.keep_running)
-        control_process.start()
-        print("[MPManager] Controller process started")
-
-        print("[MPManager] Setup finished")
-        self.start_video.value = True
-
-        current_pipe_data = PipeData(
-            frame=None,
-            frame_version=0,
-            depth_frame=None,
-            last_pipeline_name="None",
-            creation_time=time.time(),
-            raw_frame=None,
-        )
-        current_pipe_data.timing_info.start("Process Video (in Parallel)")
-
-        video_rois: VideoRois = get_roi_bbox_for_video(
-            Config.video_name, Config.width, Config.height, Config.roi_config_path
-        )
-        video_info = VideoInfo(
-            video_name=Config.video_name,
-            height=Config.height,
-            width=Config.width,
-            video_rois=video_rois,
-        )
-
-        rust_ui = SharedMessage.open(
-            "rust_ui", OperationMode.WriteAsync
-        )
-        iteration_counter = 0
-        while self.keep_running.value:
-            pipe_data_list: list[PipeData | None] = read_all_map(
-                pipeline_shm_list, deserialize_pipe_data
-            )
-            iteration_counter += 1
-            for new_pipe_data in pipe_data_list:
-                if new_pipe_data is not None:
-                    dl = f"Data Lifecycle {new_pipe_data.last_pipeline_name[0]}"
-                    md = f"Merge Data {new_pipe_data.last_pipeline_name[0]}"
-                    tf2 = f"Transfer Merged Data {new_pipe_data.last_pipeline_name[0]}"
-
-                    new_pipe_data.timing_info.start(md, parent=dl)
-                    current_pipe_data.merge(new_pipe_data)
-                    current_pipe_data.timing_info.stop(md)
-
-                    current_pipe_data.timing_info.start(tf2, dl)
-                    pickled_pipe_data = pickle.dumps(
-                        current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL
+            for index, pipeline in enumerate(pipelines):
+                pipeline_shm_list.append(
+                    SharedMessage.create(
+                        Config.shm_base_name + pipeline.name,
+                        Config.max_pipe_data_size,
+                        OperationMode.ReadSync,
+                        ReaderWaitPolicy.Count(0)
                     )
-                    if not control_loop_shm.is_stopped():
-                        control_loop_shm.write(pickled_pipe_data)
+                )
 
-                    if not rust_ui.is_stopped():
-                        display_frames = []
-                        if current_pipe_data.raw_frame is not None:
-                            drawn_frame = visualize_data(
-                                video_info=video_info, data=current_pipe_data, raw_frame=current_pipe_data.raw_frame, display_text=False
-                            )
-                            display_frames.append(("Main", drawn_frame))
+                debug_pipe, child_debug_pipe = mp.Pipe()
+                artificial_delay = 0.0
 
-                        if new_pipe_data.processed_frames is not None and len(new_pipe_data.processed_frames) > 0:
-                            for name, pipeline_images in new_pipe_data.processed_frames.items():
-                                for (index, image) in enumerate(pipeline_images):
-                                    display_frames.append((f"{name} {index}", image))
+                process = SequentialFilterProcess(
+                    filters=pipeline.filters,
+                    keep_running=self.keep_running,
+                    debug_pipe=child_debug_pipe,
+                    artificial_delay=artificial_delay,
+                    process_name=pipeline.name,
+                    program_start_time=self.program_start_time,
+                )
 
-                        description = f"Frame: {current_pipe_data.frame_version}; Heading error: {int(current_pipe_data.heading_error_degrees)}°; Lateral Offset: {int(current_pipe_data.lateral_offset * 100)}%"
-                        images_bytes = bytes(pack_named_images(description, display_frames))
-                        # print(time.perf_counter() - start_time1)
-                        if len(images_bytes) >= rust_ui.payload_max_size():
-                            print("[Main] Images to visualize too big")
-                        rust_ui.write(images_bytes)
+                process.start()
+                pipeline_processes.append((process, debug_pipe))
+            print("[MPManager] All parallel processes started")
 
-                    if (
-                        Config.save_processed_video
-                        and save_shm_queue
-                        and not save_shm_queue.is_stopped()
-                    ):
-                        save_shm_queue.write(pickled_pipe_data)
+            camera_process = MockCameraProcess(
+                start_video=self.start_video,
+                keep_running=self.keep_running,
+                program_start_time=self.program_start_time,
+                final_frame_version=self.final_frame_version,
+                name="CameraProcess",
+            )
+            camera_process.start()
+            print("[MPManager] CameraProcess started")
 
-                    current_pipe_data.timing_info.remove_recursive(dl)
+            control_process = Control(self.keep_running)
+            control_process.start()
+            print("[MPManager] Controller process started")
 
-                    del new_pipe_data
+            print("[MPManager] Setup finished")
+            self.start_video.value = True
 
-            if current_pipe_data.frame_version == self.final_frame_version.value:
-                    print(f"[Main] Received final frame version: {current_pipe_data.frame_version}")
-                    self.keep_running.value = False
+            current_pipe_data = PipeData(
+                frame=None,
+                frame_version=-1,
+                depth_frame=None,
+                last_pipeline_name="None",
+                creation_time=time.time(),
+                raw_frame=None,
+            )
 
-        if save_shm_queue:
-            save_shm_queue.stop()
+            current_pipe_data.timing_info.start("Process Video (in Parallel)")
 
-        print("[MPManager] Exiting main loop")
-        control_loop_shm.stop()
-        video_feed_shm.stop()
+            write_count = 0
+            while self.keep_running.value:
+                pipe_data_list: list[PipeData | None] = read_all_map(
+                    pipeline_shm_list, deserialize_pipe_data
+                )
+                for new_pipe_data in pipe_data_list:
+                    if new_pipe_data is not None:
+                        dl = f"Data Lifecycle {new_pipe_data.last_pipeline_name[0]}"
+                        md = f"Merge Data {new_pipe_data.last_pipeline_name[0]}"
+                        tf2 = f"Transfer Merged Data {new_pipe_data.last_pipeline_name[0]}"
 
-        print("[MPManager] Joining ControllerProcess")
-        control_process.join()
-        print("[MPManager] ControllerProcess joined")
+                        new_pipe_data.timing_info.start(md, parent=dl)
+                        current_pipe_data.merge(new_pipe_data)
+                        current_pipe_data.timing_info.stop(md)
 
-        print("[MPManager] Joining CameraProcess")
-        camera_process.join()
-        print("[MPManager] CameraProcess joined")
+                        current_pipe_data.timing_info.start(tf2, dl)
+                        pickled_pipe_data = pickle.dumps(
+                            current_pipe_data, protocol=pickle.HIGHEST_PROTOCOL
+                        )
+                        if not visualization_shm.is_stopped():
+                            visualization_shm.write(pickled_pipe_data)
+                        if not control_loop_shm.is_stopped():
+                            control_loop_shm.write(pickled_pipe_data)
 
-        print("[MPManager] Joining all parallel processes")
-        frames_indexes_dict = {}
-        for process, debug_pipe in pipeline_processes:
-            try:
-                processed_frame_indexes = debug_pipe.recv()
-                frames_indexes_dict[process.name] = processed_frame_indexes
-                # print(
-                #     f"[MPManager] {process.name} processed frame indexes: {processed_frame_indexes}"
-                # )
-            except EOFError:
-                print(f"[MPManager] Error: {process.name} debug pipe is closed")
-            finally:
-                debug_pipe.close()
-            process.join()
-        print("[MPManager] All parallel processes joined")
+                        if (
+                            Config.save_processed_video
+                            and save_shm_queue
+                            and not save_shm_queue.is_stopped()
+                        ):
+                            save_shm_queue.write(pickled_pipe_data)
+                            write_count += 1
 
-        if video_writer_process:
-            print("[MPManager] Joining VideoWriterProcess")
-            video_writer_process.join()
-            print("[MPManager] VideoWriterProcess joined")
+                        current_pipe_data.timing_info.remove_recursive(dl)
 
-        rust_ui.stop()
+                        del new_pipe_data
+
+            if save_shm_queue:
+                save_shm_queue.stop()
+
+            print("[MPManager] Exiting main loop")
+            control_loop_shm.stop()
+            video_feed_shm.stop()
+            visualization_shm.stop()
+
+            print("[MPManager] Joining ControllerProcess")
+            control_process.join()
+            print("[MPManager] ControllerProcess joined")
+
+            print("[MPManager] Joining CameraProcess")
+            camera_process.join()
+            print("[MPManager] CameraProcess joined")
+
+            print("[MPManager] Joining all parallel processes")
+            frames_indexes_dict = {}
+            for process, debug_pipe in pipeline_processes:
+                try:
+                    processed_frame_indexes = debug_pipe.recv()
+                    frames_indexes_dict[process.name] = processed_frame_indexes
+                    # print(
+                    #     f"[MPManager] {process.name} processed frame indexes: {processed_frame_indexes}"
+                    # )
+                except EOFError:
+                    print(f"[MPManager] Error: {process.name} debug pipe is closed")
+                finally:
+                    debug_pipe.close()
+                process.join()
+            print("[MPManager] All parallel processes joined")
+
+            if video_writer_process:
+                print("[MPManager] Joining VideoWriterProcess")
+                video_writer_process.join()
+                print("[MPManager] VideoWriterProcess joined")
+
+        except Exception as e:
+            print(f"Error in {self.name}: {e}")
+            self.keep_running.value = False
 
 
 def deserialize_pipe_data(pipe_data_bytes: bytes) -> PipeData:

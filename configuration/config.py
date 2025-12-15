@@ -25,8 +25,8 @@ class Config:
     video_name = "Raw_Car_Pov_Final.mp4"
     # video_name = "Benchmarking-17min.mp4"
     color_channels = 3
-    camera_fps = 30  # 0 means uncapped fps
-    output_fps = 30
+    camera_fps = 0  # 0 means uncapped fps
+    output_fps = 60
     width = 1280
     height = 720
 

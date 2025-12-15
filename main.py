@@ -7,10 +7,8 @@ from datetime import datetime
 import cv2
 
 import numpy as np
-from matplotlib import pyplot as plt
-from rs_ipc.rs_ipc import ReaderWaitPolicy
 
-from rs_ipc import SharedMessage, OperationMode
+from rs_ipc import SharedMessage, OperationMode, ReaderWaitPolicy
 from configuration.config import Config
 from perception.helpers import (
     get_roi_bbox_for_video,
@@ -19,7 +17,6 @@ from perception.helpers import (
     stack_images_v4,
 )
 from perception.objects.pipe_data import PipeData
-from perception.objects.timingvisualizer import TimingVisualizer
 from perception.objects.video_info import VideoInfo, VideoRois
 from perception.visualize_data import visualize_data
 from processes.multiprocessing_manager import MultiProcessingManager
@@ -28,14 +25,7 @@ from processes.multiprocessing_manager import MultiProcessingManager
 def main():
     program_start_time = time.perf_counter()
     mp.set_start_method("spawn")
-
-    print("[Main] Config:", Config.as_json())
-
-    timing_visualizer = TimingVisualizer()
-    ot = "Overall Timer"
-    se = "Setup"
-    timing_visualizer.start(ot)
-    timing_visualizer.start(se, parent=ot)
+    # print("[Main] Config:", Config.as_json())
 
     recording_dir_path = setup_dir_for_iteration()
 
@@ -44,11 +34,10 @@ def main():
 
     visualization_shm = SharedMessage.create(
         Config.visualization_memory_name,
-        Config.max_pipe_data_size,
-        OperationMode.ReadSync,
-        ReaderWaitPolicy.Count(0)
+        size=Config.max_pipe_data_size,
+        mode=OperationMode.ReadSync,
+        reader_wait_policy=ReaderWaitPolicy.Count(0)
     )
-
     final_frame_version = mp.Value("i", -1)
 
     mp_manager = MultiProcessingManager(
@@ -75,7 +64,6 @@ def main():
     pipe_data = None
     iteration_counter = 0
     cv2.namedWindow("CarVision", cv2.WINDOW_NORMAL)
-    timing_visualizer.stop(se)
 
     while not visualization_shm.is_stopped() and keep_running.value:
         pipe_data_bytes = visualization_shm.read(block=False)
@@ -87,15 +75,6 @@ def main():
             if pipe_data.frame_version == final_frame_version.value:
                 print(f"[Main] Received final frame version: {pipe_data.frame_version}")
                 break
-
-            dl = f"Data Lifecycle {pipe_data.last_pipeline_name[0]}"
-            tf2 = f"Transfer Data (MM -> Viz) {pipe_data.last_pipeline_name[0]}"
-
-            pipe_data.timing_info.stop(tf2)
-            pipe_data.timing_info.stop(dl)
-            timing_visualizer.timing_info.append_hierarchy(
-                pipe_data.timing_info, parent_label_of_other=ot
-            )
 
             drawn_frame = visualize_data(
                 video_info=video_info, data=pipe_data, raw_frame=pipe_data.raw_frame
@@ -135,12 +114,6 @@ def main():
     print(f"[Main] Iteration counter: {iteration_counter}")
     visualization_shm.stop()
     keep_running.value = False
-
-    timing_visualizer.stop(ot)
-    timing_visualizer.plot_pie_charts(
-        save_path=os.path.join(recording_dir_path, "timings")
-    )
-    plt.show()  # Keep the pie chart open
 
     print("[Main] Joining MultiProcessingManager")
     mp_manager.join()

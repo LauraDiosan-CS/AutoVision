@@ -4,14 +4,12 @@ import time
 from datetime import datetime
 
 from configuration.config import Config
-from processes.multiprocessing_manager import MultiProcessingManager
-
+from processes.multiprocessing_manager_rust_ui import MultiProcessingManager
 
 def main():
     program_start_time = time.perf_counter()
     mp.set_start_method("spawn")
-
-    print("[Main] Config:", Config.as_json())
+    # print("[Main] Config:", Config.as_json())
 
     recording_dir_path = setup_dir_for_iteration()
 
